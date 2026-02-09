@@ -15,6 +15,7 @@ import type {
 } from "../../shared/types.js";
 import type { AudioSidecarManager } from "../sidecars/audioSidecarManager.js";
 import { getModelsDir } from "../utils/paths.js";
+import { logDebug, logError, logInfo, logWarn } from "../utils/logging.js";
 
 interface PersistedBootstrapState {
   installPath: string;
@@ -112,15 +113,33 @@ export class BootstrapManager {
     await this.ensureInitialized();
 
     if (this.currentRun) {
+      logWarn("bootstrap", "start ignored because bootstrap is already running", {
+        phase: this.status.phase,
+        step: this.status.step
+      });
       return { ...this.status, modelPacks: this.status.modelPacks.map(clonePackStatus) };
     }
 
     const normalized = this.normalizeInput(input);
+    logInfo("bootstrap", "start requested", {
+      requestedInstallPath: input.installPath,
+      normalizedInstallPath: normalized.installPath,
+      kokoroBackend: normalized.kokoroBackend,
+      selectedPackIds: normalized.selectedPackIds
+    });
     this.status.installPath = normalized.installPath;
     this.status.kokoroBackend = normalized.kokoroBackend;
     await this.refreshPackStatuses();
 
     const selectedPackIds = this.normalizeSelectedPackIds(normalized.selectedPackIds);
+    logDebug("bootstrap", "selected packs normalized", {
+      selectedPackIds,
+      availablePacks: this.status.modelPacks.map((pack) => ({
+        id: pack.id,
+        state: pack.state,
+        source: pack.source
+      }))
+    });
     if (selectedPackIds.length === 0) {
       this.status = {
         ...this.status,
@@ -161,6 +180,11 @@ export class BootstrapManager {
     this.statePath = join(userDataPath, STATE_FILE_NAME);
     this.status.defaultInstallPath = defaultInstallPath;
     this.status.installPath = defaultInstallPath;
+    logDebug("bootstrap", "initialized default runtime paths", {
+      userDataPath,
+      defaultInstallPath,
+      statePath: this.statePath
+    });
 
     try {
       const raw = await readFile(this.statePath, "utf-8");
@@ -171,8 +195,13 @@ export class BootstrapManager {
       if (parsed.kokoroBackend && ALLOWED_BACKENDS.includes(parsed.kokoroBackend)) {
         this.status.kokoroBackend = parsed.kokoroBackend;
       }
+      logDebug("bootstrap", "restored persisted bootstrap state", {
+        installPath: this.status.installPath,
+        kokoroBackend: this.status.kokoroBackend
+      });
     } catch {
       // Missing state is expected on first run.
+      logDebug("bootstrap", "no persisted bootstrap state found");
     }
 
     await this.refreshPackStatuses();
@@ -267,6 +296,11 @@ export class BootstrapManager {
 
   private async runBootstrap(input: BootstrapStartInput, selectedPackIds: string[]): Promise<void> {
     try {
+      logInfo("bootstrap", "run started", {
+        installPath: input.installPath,
+        selectedPackIds,
+        kokoroBackend: input.kokoroBackend
+      });
       await mkdir(input.installPath, { recursive: true });
       const targetModelsDir = join(input.installPath, "models");
       const downloadsDir = join(input.installPath, DOWNLOADS_DIR_NAME);
@@ -275,6 +309,12 @@ export class BootstrapManager {
 
       const selectedPacks = this.status.modelPacks.filter((pack) => selectedPackIds.includes(pack.id));
       const pendingPacks = selectedPacks.filter((pack) => pack.state !== "installed");
+      logDebug("bootstrap", "resolved pack install plan", {
+        selectedPacks: selectedPacks.map((pack) => ({ id: pack.id, state: pack.state, source: pack.source })),
+        pendingPacks: pendingPacks.map((pack) => ({ id: pack.id, state: pack.state, source: pack.source })),
+        targetModelsDir,
+        downloadsDir
+      });
 
       const packTotals = new Map<string, number>();
       const packDone = new Map<string, number>();
@@ -292,6 +332,12 @@ export class BootstrapManager {
         }
 
         const sourceInfo = this.resolvePackSource(definition);
+        logInfo("bootstrap", "installing pack", {
+          packId: definition.id,
+          title: definition.title,
+          source: sourceInfo.source,
+          downloadUrl: sourceInfo.downloadUrl
+        });
         if (sourceInfo.source === "remote" && sourceInfo.downloadUrl) {
           await this.downloadAndInstallRemotePack(
             definition,
@@ -320,10 +366,19 @@ export class BootstrapManager {
           error: undefined
         });
         this.updateOverallProgress("install", `Installed ${definition.title}.`, packDone, packTotals, true);
+        logInfo("bootstrap", "pack installed", {
+          packId: definition.id,
+          bytes: packTotal
+        });
       }
 
       const runtimeMode = determineRuntimeMode(selectedPackIds);
       let runtimeModeUsed: AudioRuntimeMode = runtimeMode;
+      logInfo("bootstrap", "starting runtime", {
+        runtimeMode,
+        modelsDir: targetModelsDir,
+        kokoroBackend: input.kokoroBackend
+      });
 
       this.status = {
         ...this.status,
@@ -341,7 +396,12 @@ export class BootstrapManager {
           kokoroBackend: input.kokoroBackend,
           runtimeMode
         }), 120_000, "Timed out while starting local speech runtime. If this is first run, verify network or pre-seed Kokoro cache with `npm run seed:kokoro-node` and retry.");
+        logInfo("bootstrap", "runtime started", { runtimeMode });
       } catch (error) {
+        logWarn("bootstrap", "runtime start failed", {
+          runtimeMode,
+          error
+        });
         if (runtimeMode !== "node-core") {
           throw error;
         }
@@ -360,6 +420,7 @@ export class BootstrapManager {
           runtimeMode: "python-expressive"
         }), 120_000, "Timed out while starting fallback Python runtime.");
         runtimeModeUsed = "python-expressive";
+        logInfo("bootstrap", "fallback runtime started", { runtimeModeUsed });
       }
 
       await this.refreshPackStatuses();
@@ -368,6 +429,10 @@ export class BootstrapManager {
         kokoroBackend: input.kokoroBackend,
         installedPacks: this.status.modelPacks.filter((pack) => pack.state === "installed").map((pack) => pack.id),
         completedAt: new Date().toISOString()
+      });
+      logDebug("bootstrap", "persisted bootstrap state", {
+        installPath: input.installPath,
+        kokoroBackend: input.kokoroBackend
       });
 
       const total = this.status.modelPacks
@@ -387,8 +452,13 @@ export class BootstrapManager {
         bytesTotal: total,
         error: undefined
       };
+      logInfo("bootstrap", "run completed", {
+        runtimeModeUsed,
+        totalBytes: total
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      logError("bootstrap", "run failed", { error, message, status: this.status });
       this.status = {
         ...this.status,
         phase: "error",
@@ -408,6 +478,11 @@ export class BootstrapManager {
     packTotals: Map<string, number>
   ): Promise<void> {
     const archivePath = join(downloadsDir, `${definition.id}.tar.gz`);
+    logDebug("bootstrap", "downloading remote pack archive", {
+      packId: definition.id,
+      downloadUrl,
+      archivePath
+    });
     this.patchPack(definition.id, {
       state: "downloading",
       downloadUrl,
@@ -444,6 +519,11 @@ export class BootstrapManager {
     });
     this.status.step = "extract";
     this.status.message = `Installing ${definition.title}...`;
+    logDebug("bootstrap", "extracting remote pack archive", {
+      packId: definition.id,
+      archivePath,
+      targetModelsDir
+    });
     await installArchivePack(archivePath, definition.installTargets, targetModelsDir);
   }
 
@@ -454,6 +534,11 @@ export class BootstrapManager {
     packTotals: Map<string, number>
   ): Promise<void> {
     const sourceModelsDir = getModelsDir();
+    logDebug("bootstrap", "installing bundled pack", {
+      packId: definition.id,
+      sourceModelsDir,
+      targetModelsDir
+    });
     this.patchPack(definition.id, {
       state: "downloading",
       source: "bundled",

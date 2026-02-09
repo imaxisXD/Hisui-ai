@@ -9,6 +9,8 @@ import type {
   RenderJob,
   RenderOptions,
   RenderStatus,
+  VoicePreviewInput,
+  VoicePreviewResult,
   SystemHealth,
   TagValidationResult,
   UpdateSpeakersInput,
@@ -27,9 +29,12 @@ export const IPC_CHANNELS = {
   cancelRender: "app:cancel-render",
   getRenderStatus: "app:get-render-status",
   listVoices: "app:list-voices",
+  previewVoice: "app:preview-voice",
   validateExpressionTags: "app:validate-expression-tags",
   runOptionalLlmPrep: "app:run-optional-llm-prep",
   getSystemHealth: "app:get-system-health",
+  getDefaultRenderOutputDir: "app:get-default-render-output-dir",
+  revealInFileManager: "app:reveal-in-file-manager",
   showOpenFileDialog: "app:show-open-file-dialog",
   showOpenDirectoryDialog: "app:show-open-directory-dialog"
 } as const;
@@ -45,9 +50,12 @@ export interface DesktopApi {
   cancelRender(jobId: string): Promise<void>;
   getRenderStatus(jobId: string): Promise<RenderStatus>;
   listVoices(): Promise<VoiceDefinition[]>;
+  previewVoice(input: VoicePreviewInput): Promise<VoicePreviewResult>;
   validateExpressionTags(text: string): Promise<TagValidationResult>;
   runOptionalLlmPrep(input: LlmPrepInput): Promise<LlmPrepResult>;
   getSystemHealth(): Promise<SystemHealth>;
+  getDefaultRenderOutputDir(): Promise<string>;
+  revealInFileManager(path: string): Promise<void>;
   showOpenFileDialog(filters?: { name: string; extensions: string[] }[]): Promise<string | null>;
   showOpenDirectoryDialog(defaultPath?: string): Promise<string | null>;
 }

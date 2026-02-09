@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { importBook } from "./ingestion/importBook.js";
 import { buildProject } from "./ingestion/projectBuilder.js";
 import type { SpeakerProfile } from "../shared/types.js";
-import type { TtsSegmentRequest } from "./sidecars/audioClient.js";
+import type { BatchTtsProgress, TtsSegmentRequest } from "./sidecars/audioClient.js";
 
 vi.mock("electron", () => ({
   app: {
@@ -119,8 +119,18 @@ describe("import -> cast -> render integration", () => {
     }
 
     repositoryMock.getProject.mockReturnValue(project);
+    const staleDir = join(outputDir, ".render-stale-old");
+    const freshDir = join(outputDir, ".render-stale-new");
+    await mkdir(staleDir, { recursive: true });
+    await mkdir(freshDir, { recursive: true });
+    const staleTimestamp = new Date(Date.now() - (26 * 60 * 60 * 1000));
+    await utimes(staleDir, staleTimestamp, staleTimestamp);
 
-    const batchTtsMock = vi.fn(async (segments: TtsSegmentRequest[], batchOutputDir: string) => {
+    const batchTtsMock = vi.fn(async (
+      segments: TtsSegmentRequest[],
+      batchOutputDir: string,
+      onProgress?: (progress: BatchTtsProgress) => void
+    ) => {
       await mkdir(batchOutputDir, { recursive: true });
       const wavPaths: string[] = [];
       for (let i = 0; i < segments.length; i += 1) {
@@ -131,6 +141,7 @@ describe("import -> cast -> render integration", () => {
         const wavPath = join(batchOutputDir, `seg-${String(i).padStart(5, "0")}-${current.id}.wav`);
         await writeFile(wavPath, Buffer.from("RIFF"));
         wavPaths.push(wavPath);
+        onProgress?.({ completedSegments: i + 1, totalSegments: segments.length });
       }
       return { wavPaths };
     });
@@ -146,12 +157,23 @@ describe("import -> cast -> render integration", () => {
       audioClient: { batchTts: batchTtsMock } as never,
       llmPrepService: { prepareText: llmPrepMock } as never
     });
+    const progressEvents: Array<{
+      phase: string;
+      percent: number;
+      etaSeconds?: number;
+    }> = [];
 
     const job = await service.renderProject(project.id, {
       outputDir,
       outputFileName: "fixture-render",
       speed: 1,
       enableLlmPrep: false
+    }, undefined, undefined, (progress) => {
+      progressEvents.push({
+        phase: progress.phase,
+        percent: progress.percent,
+        etaSeconds: progress.etaSeconds
+      });
     });
 
     expect(job.state).toBe("completed");
@@ -180,5 +202,63 @@ describe("import -> cast -> render integration", () => {
     expect(ffmpegArgs).toContain("-af");
     expect(ffmpegArgs).toContain("aformat=sample_fmts=s16:sample_rates=44100:channel_layouts=mono");
     expect(ffmpegArgs).toContain("libmp3lame");
+
+    expect(progressEvents.length).toBeGreaterThan(0);
+    expect(progressEvents.some((event) => event.phase === "synth")).toBe(true);
+    expect(progressEvents.some((event) => event.phase === "merge")).toBe(true);
+    expect(progressEvents[progressEvents.length - 1]?.percent).toBe(100);
+    for (let index = 1; index < progressEvents.length; index += 1) {
+      const previous = progressEvents[index - 1];
+      const current = progressEvents[index];
+      expect(current?.percent ?? 0).toBeGreaterThanOrEqual(previous?.percent ?? 0);
+    }
+
+    expect(existsSync(join(outputDir, `.render-${job.id}`))).toBe(false);
+    expect(existsSync(staleDir)).toBe(false);
+    expect(existsSync(freshDir)).toBe(true);
+  });
+
+  it("cleans up current render temp directory after failed render", async () => {
+    const project = buildProject({
+      title: "Failed Render Fixture",
+      sourcePath: "(fixture)",
+      sourceFormat: "txt",
+      chapters: [
+        { title: "One", text: "Hello world.\n\nSecond paragraph." }
+      ],
+      speakers: [
+        {
+          id: "speaker-kokoro",
+          name: "Narrator",
+          ttsModel: "kokoro",
+          voiceId: "kokoro_narrator"
+        }
+      ]
+    });
+
+    repositoryMock.getProject.mockReturnValue(project);
+
+    const batchTtsMock = vi.fn(async (_segments: TtsSegmentRequest[], batchOutputDir: string) => {
+      await mkdir(batchOutputDir, { recursive: true });
+      await writeFile(join(batchOutputDir, "seg-00000-test.wav"), Buffer.from("RIFF"));
+      throw new Error("simulated tts failure");
+    });
+
+    const { RenderService } = await import("./render/renderService.js");
+    const service = new RenderService({
+      audioClient: { batchTts: batchTtsMock } as never,
+      llmPrepService: { prepareText: vi.fn(async (text: string) => ({ originalText: text, preparedText: text, changed: false })) } as never
+    });
+
+    const job = await service.renderProject(project.id, {
+      outputDir,
+      outputFileName: "fixture-failure",
+      speed: 1,
+      enableLlmPrep: false
+    });
+
+    expect(job.state).toBe("failed");
+    expect(job.errorText).toContain("simulated tts failure");
+    expect(existsSync(join(outputDir, `.render-${job.id}`))).toBe(false);
   });
 });

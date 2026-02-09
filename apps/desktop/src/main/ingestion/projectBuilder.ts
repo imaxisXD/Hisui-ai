@@ -12,7 +12,7 @@ function ensureSpeakers(inputSpeakers: SpeakerProfile[]): SpeakerProfile[] {
       id: createId(),
       name: "Narrator",
       ttsModel: "kokoro",
-      voiceId: "kokoro_narrator"
+      voiceId: "af_heart"
     }
   ];
 }

@@ -49,19 +49,179 @@ VOICE_MAP = {
     "chatterbox_studio": "neutral",
 }
 
+KOKORO_ENGLISH_VOICE_LIBRARY = [
+    {
+        "id": "af_heart",
+        "model": "kokoro",
+        "label": "Kokoro Heart",
+        "description": "American English female voice (engine: af_heart)",
+    },
+    {
+        "id": "af_bella",
+        "model": "kokoro",
+        "label": "Kokoro Bella",
+        "description": "American English female voice (engine: af_bella)",
+    },
+    {
+        "id": "af_alloy",
+        "model": "kokoro",
+        "label": "Kokoro Alloy",
+        "description": "American English female voice (engine: af_alloy)",
+    },
+    {
+        "id": "af_aoede",
+        "model": "kokoro",
+        "label": "Kokoro Aoede",
+        "description": "American English female voice (engine: af_aoede)",
+    },
+    {
+        "id": "af_jessica",
+        "model": "kokoro",
+        "label": "Kokoro Jessica",
+        "description": "American English female voice (engine: af_jessica)",
+    },
+    {
+        "id": "af_kore",
+        "model": "kokoro",
+        "label": "Kokoro Kore",
+        "description": "American English female voice (engine: af_kore)",
+    },
+    {
+        "id": "af_nicole",
+        "model": "kokoro",
+        "label": "Kokoro Nicole",
+        "description": "American English female voice (engine: af_nicole)",
+    },
+    {
+        "id": "af_nova",
+        "model": "kokoro",
+        "label": "Kokoro Nova",
+        "description": "American English female voice (engine: af_nova)",
+    },
+    {
+        "id": "af_river",
+        "model": "kokoro",
+        "label": "Kokoro River",
+        "description": "American English female voice (engine: af_river)",
+    },
+    {
+        "id": "af_sarah",
+        "model": "kokoro",
+        "label": "Kokoro Sarah",
+        "description": "American English female voice (engine: af_sarah)",
+    },
+    {
+        "id": "af_sky",
+        "model": "kokoro",
+        "label": "Kokoro Sky",
+        "description": "American English female voice (engine: af_sky)",
+    },
+    {
+        "id": "am_adam",
+        "model": "kokoro",
+        "label": "Kokoro Adam",
+        "description": "American English male voice (engine: am_adam)",
+    },
+    {
+        "id": "am_echo",
+        "model": "kokoro",
+        "label": "Kokoro Echo",
+        "description": "American English male voice (engine: am_echo)",
+    },
+    {
+        "id": "am_eric",
+        "model": "kokoro",
+        "label": "Kokoro Eric",
+        "description": "American English male voice (engine: am_eric)",
+    },
+    {
+        "id": "am_fenrir",
+        "model": "kokoro",
+        "label": "Kokoro Fenrir",
+        "description": "American English male voice (engine: am_fenrir)",
+    },
+    {
+        "id": "am_liam",
+        "model": "kokoro",
+        "label": "Kokoro Liam",
+        "description": "American English male voice (engine: am_liam)",
+    },
+    {
+        "id": "am_michael",
+        "model": "kokoro",
+        "label": "Kokoro Michael",
+        "description": "American English male voice (engine: am_michael)",
+    },
+    {
+        "id": "am_onyx",
+        "model": "kokoro",
+        "label": "Kokoro Onyx",
+        "description": "American English male voice (engine: am_onyx)",
+    },
+    {
+        "id": "am_puck",
+        "model": "kokoro",
+        "label": "Kokoro Puck",
+        "description": "American English male voice (engine: am_puck)",
+    },
+    {
+        "id": "am_santa",
+        "model": "kokoro",
+        "label": "Kokoro Santa",
+        "description": "American English male voice (engine: am_santa)",
+    },
+    {
+        "id": "bf_alice",
+        "model": "kokoro",
+        "label": "Kokoro Alice (UK)",
+        "description": "British English female voice (engine: bf_alice)",
+    },
+    {
+        "id": "bf_emma",
+        "model": "kokoro",
+        "label": "Kokoro Emma (UK)",
+        "description": "British English female voice (engine: bf_emma)",
+    },
+    {
+        "id": "bf_isabella",
+        "model": "kokoro",
+        "label": "Kokoro Isabella (UK)",
+        "description": "British English female voice (engine: bf_isabella)",
+    },
+    {
+        "id": "bf_lily",
+        "model": "kokoro",
+        "label": "Kokoro Lily (UK)",
+        "description": "British English female voice (engine: bf_lily)",
+    },
+    {
+        "id": "bm_daniel",
+        "model": "kokoro",
+        "label": "Kokoro Daniel (UK)",
+        "description": "British English male voice (engine: bm_daniel)",
+    },
+    {
+        "id": "bm_fable",
+        "model": "kokoro",
+        "label": "Kokoro Fable (UK)",
+        "description": "British English male voice (engine: bm_fable)",
+    },
+    {
+        "id": "bm_george",
+        "model": "kokoro",
+        "label": "Kokoro George (UK)",
+        "description": "British English male voice (engine: bm_george)",
+    },
+    {
+        "id": "bm_lewis",
+        "model": "kokoro",
+        "label": "Kokoro Lewis (UK)",
+        "description": "British English male voice (engine: bm_lewis)",
+    },
+]
+
 VOICE_LIBRARY = [
-    {
-        "id": "kokoro_narrator",
-        "model": "kokoro",
-        "label": "Kokoro Narrator",
-        "description": "Neutral long-form narration (engine: af_heart)",
-    },
-    {
-        "id": "kokoro_story",
-        "model": "kokoro",
-        "label": "Kokoro Story",
-        "description": "Warm storytelling voice (engine: af_bella)",
-    },
+    *KOKORO_ENGLISH_VOICE_LIBRARY,
     {
         "id": "chatterbox_expressive",
         "model": "chatterbox",

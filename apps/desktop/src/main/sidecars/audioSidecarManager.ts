@@ -6,6 +6,7 @@ import { AudioClient, type AudioRuntimeClient } from "./audioClient.js";
 import { NodeKokoroClient } from "./nodeKokoroClient.js";
 import { getAudioServiceScriptPath, getKokoroNodeScriptPath, getModelsDir, getNodeModulesRoot } from "../utils/paths.js";
 import type { AudioRuntimeMode, KokoroBackendMode } from "../../shared/types.js";
+import { logDebug, logError, logInfo, logWarn } from "../utils/logging.js";
 
 export interface AudioSidecarStartOptions {
   modelsDir?: string;
@@ -29,8 +30,9 @@ export class AudioSidecarManager {
     this.runtimeGateway = {
       health: () => this.activeRuntimeClient.health(),
       listVoices: () => this.activeRuntimeClient.listVoices(),
+      previewVoice: (input, outputDir) => this.activeRuntimeClient.previewVoice(input, outputDir),
       validateTags: (text: string) => this.activeRuntimeClient.validateTags(text),
-      batchTts: (segments, outputDir) => this.activeRuntimeClient.batchTts(segments, outputDir)
+      batchTts: (segments, outputDir, onProgress) => this.activeRuntimeClient.batchTts(segments, outputDir, onProgress)
     };
   }
 
@@ -40,20 +42,28 @@ export class AudioSidecarManager {
 
   async start(options: AudioSidecarStartOptions = {}): Promise<void> {
     const config = this.resolveConfig(options);
+    logInfo("audio-sidecar", "start requested", config);
 
     if (this.process && this.activeConfig && isSameConfig(this.activeConfig, config)) {
+      logDebug("audio-sidecar", "start skipped (already running with same config)", config);
       return;
     }
 
     if (this.process) {
+      logInfo("audio-sidecar", "stopping existing process before restart");
       await this.stop();
     }
 
     if (config.runtimeMode === "node-core") {
+      logInfo("audio-sidecar", "starting node-core runtime", {
+        modelsDir: config.modelsDir,
+        kokoroBackend: config.kokoroBackend
+      });
       await this.ensureNodeCacheReady(config.modelsDir);
       this.activeRuntimeClient = new NodeKokoroClient(config.modelsDir);
       this.activeConfig = config;
       await this.waitForHealth(5000);
+      logInfo("audio-sidecar", "node-core runtime healthy");
       return;
     }
 
@@ -65,8 +75,18 @@ export class AudioSidecarManager {
     const offline = process.env.LOCAL_PODCAST_HF_OFFLINE ?? "1";
     const kokoroNodeScript = getKokoroNodeScriptPath();
     const kokoroNodeCache = join(config.modelsDir, "kokoro-node-cache");
-    const nodeBin = process.env.LOCAL_PODCAST_NODE_BIN?.trim() || process.execPath;
+    const nodeBin = process.env.LOCAL_PODCAST_NODE_BIN?.trim() || resolvePreferredNodeBinary();
     const nodeFlags = resolveNodeFlags(nodeBin);
+    logInfo("audio-sidecar", "spawning python sidecar", {
+      pythonBinary,
+      script,
+      port: this.port,
+      modelsDir: config.modelsDir,
+      kokoroBackend: config.kokoroBackend,
+      runtimeMode: config.runtimeMode,
+      nodeBin,
+      nodeFlags
+    });
     this.lastSidecarStderr = "";
     this.process = spawn(pythonBinary, [script, "--port", String(this.port)], {
       stdio: "pipe",
@@ -100,20 +120,30 @@ export class AudioSidecarManager {
       process.stderr.write(`[audio-sidecar] ${chunk}`);
     });
 
-    this.process.on("exit", () => {
+    this.process.on("exit", (code, signal) => {
+      logWarn("audio-sidecar", "python sidecar process exited", {
+        runtimeMode: config.runtimeMode,
+        code,
+        signal
+      });
       this.process = null;
       this.activeConfig = null;
     });
 
     await this.waitForHealth(15000);
+    logInfo("audio-sidecar", "python sidecar healthy", {
+      runtimeMode: config.runtimeMode
+    });
   }
 
   async stop(): Promise<void> {
     if (!this.process) {
       this.activeConfig = null;
+      logDebug("audio-sidecar", "stop ignored (no running process)");
       return;
     }
 
+    logInfo("audio-sidecar", "stopping python sidecar process");
     this.process.kill("SIGTERM");
     this.process = null;
     this.activeConfig = null;
@@ -131,6 +161,11 @@ export class AudioSidecarManager {
   private async waitForHealth(timeoutMs: number): Promise<void> {
     const start = Date.now();
     const requiresProcess = this.activeConfig?.runtimeMode !== "node-core";
+    logDebug("audio-sidecar", "health wait started", {
+      timeoutMs,
+      requiresProcess,
+      runtimeMode: this.activeConfig?.runtimeMode
+    });
     while ((Date.now() - start) < timeoutMs) {
       if (requiresProcess && !this.process) {
         const detail = this.lastSidecarStderr.trim();
@@ -140,6 +175,10 @@ export class AudioSidecarManager {
         throw new Error("Audio sidecar exited before health check passed");
       }
       if (await this.isHealthy()) {
+        logDebug("audio-sidecar", "health check passed", {
+          elapsedMs: Date.now() - start,
+          runtimeMode: this.activeConfig?.runtimeMode
+        });
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -147,8 +186,17 @@ export class AudioSidecarManager {
 
     const detail = this.lastSidecarStderr.trim();
     if (detail) {
+      logError("audio-sidecar", "health wait failed", {
+        timeoutMs,
+        runtimeMode: this.activeConfig?.runtimeMode,
+        detail
+      });
       throw new Error(`Audio sidecar did not become healthy in time: ${detail}`);
     }
+    logError("audio-sidecar", "health wait timed out without stderr", {
+      timeoutMs,
+      runtimeMode: this.activeConfig?.runtimeMode
+    });
     throw new Error("Audio sidecar did not become healthy in time");
   }
 
@@ -165,13 +213,15 @@ export class AudioSidecarManager {
   private async ensureNodeCacheReady(modelsDir: string): Promise<void> {
     const cacheDir = join(modelsDir, "kokoro-node-cache");
     if (await hasCachedFiles(cacheDir)) {
+      logDebug("audio-sidecar", "node cache already present", { cacheDir });
       return;
     }
+    logInfo("audio-sidecar", "node cache missing, seeding", { cacheDir });
 
     const seedScript = join(dirname(getKokoroNodeScriptPath()), "seed-model.mjs");
     await access(seedScript, constants.R_OK);
 
-    const nodeBin = process.env.LOCAL_PODCAST_NODE_BIN?.trim() || process.execPath;
+    const nodeBin = process.env.LOCAL_PODCAST_NODE_BIN?.trim() || resolvePreferredNodeBinary();
     const nodeFlags = resolveNodeFlags(nodeBin);
     const args = [
       ...splitFlags(nodeFlags),
@@ -179,12 +229,19 @@ export class AudioSidecarManager {
       "--cacheDir",
       cacheDir
     ];
+    logInfo("audio-sidecar", "running node cache seed command", {
+      nodeBin,
+      nodeFlags,
+      seedScript,
+      cacheDir
+    });
 
     await runCommandWithTimeout(nodeBin, args, {
       ...process.env,
       LOCAL_PODCAST_NODE_HF_CACHE: process.env.LOCAL_PODCAST_NODE_HF_CACHE ?? cacheDir,
       NODE_PATH: process.env.NODE_PATH ?? getNodeModulesRoot()
     }, 90_000, "Kokoro node cache seed timed out. Check network access or pre-seed with `npm run seed:kokoro-node`.");
+    logInfo("audio-sidecar", "node cache seed completed", { cacheDir });
   }
 }
 
@@ -211,6 +268,13 @@ function resolvePythonBinary(audioServiceScriptPath: string): string {
 function commandExists(command: string): boolean {
   const result = spawnSync(command, ["--version"], { stdio: "ignore" });
   return result.status === 0;
+}
+
+function resolvePreferredNodeBinary(): string {
+  if (isElectronBinary(process.execPath) && commandExists("node")) {
+    return "node";
+  }
+  return process.execPath;
 }
 
 function isSameConfig(
@@ -258,6 +322,11 @@ async function runCommandWithTimeout(
   timeoutMs: number,
   timeoutMessage: string
 ): Promise<void> {
+  logDebug("audio-sidecar/command", "spawn", {
+    command,
+    args,
+    timeoutMs
+  });
   await new Promise<void>((resolvePromise, rejectPromise) => {
     const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"], env });
     let stderr = "";
@@ -270,6 +339,12 @@ async function runCommandWithTimeout(
       child.kill("SIGKILL");
       const detail = (stderr || stdout).trim();
       const suffix = detail ? ` Details: ${detail}` : "";
+      logError("audio-sidecar/command", "timeout", {
+        command,
+        args,
+        timeoutMs,
+        detail
+      });
       rejectPromise(new Error(`${timeoutMessage}${suffix}`));
     }, timeoutMs);
 
@@ -293,21 +368,39 @@ async function runCommandWithTimeout(
       }
       finished = true;
       clearTimeout(timeout);
+      logError("audio-sidecar/command", "spawn error", {
+        command,
+        args,
+        error
+      });
       rejectPromise(error);
     });
 
-    child.on("close", (code) => {
+    child.on("close", (code, signal) => {
       if (finished) {
         return;
       }
       finished = true;
       clearTimeout(timeout);
       if (code === 0) {
+        logDebug("audio-sidecar/command", "completed", {
+          command,
+          args,
+          stdout: stdout.trim()
+        });
         resolvePromise();
         return;
       }
       const detail = (stderr || stdout).trim();
-      rejectPromise(new Error(`Command failed (${code}): ${detail}`));
+      logError("audio-sidecar/command", "failed", {
+        command,
+        args,
+        code,
+        signal,
+        detail
+      });
+      const exitLabel = signal ? `signal=${signal}` : `code=${code}`;
+      rejectPromise(new Error(`Command failed (${exitLabel}): ${detail}`));
     });
   });
 }

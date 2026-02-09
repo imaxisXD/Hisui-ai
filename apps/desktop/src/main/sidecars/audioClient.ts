@@ -1,6 +1,7 @@
 import type {
   LlmPrepResult,
   TagValidationResult,
+  VoicePreviewInput,
   TtsModel,
   VoiceDefinition
 } from "../../shared/types.js";
@@ -18,11 +19,26 @@ export interface BatchTtsResponse {
   wavPaths: string[];
 }
 
+export interface BatchTtsProgress {
+  completedSegments: number;
+  totalSegments: number;
+}
+
+export interface RuntimeVoicePreviewResult {
+  wavPath: string;
+  engine?: string;
+}
+
 export interface AudioRuntimeClient {
   health(): Promise<{ running: boolean; modelStatus: string }>;
   listVoices(): Promise<VoiceDefinition[]>;
+  previewVoice(input: VoicePreviewInput, outputDir: string): Promise<RuntimeVoicePreviewResult>;
   validateTags(text: string): Promise<TagValidationResult>;
-  batchTts(segments: TtsSegmentRequest[], outputDir: string): Promise<BatchTtsResponse>;
+  batchTts(
+    segments: TtsSegmentRequest[],
+    outputDir: string,
+    onProgress?: (progress: BatchTtsProgress) => void
+  ): Promise<BatchTtsResponse>;
 }
 
 export class AudioClient implements AudioRuntimeClient {
@@ -50,6 +66,25 @@ export class AudioClient implements AudioRuntimeClient {
     return payload.voices;
   }
 
+  async previewVoice(input: VoicePreviewInput, outputDir: string): Promise<RuntimeVoicePreviewResult> {
+    const response = await fetch(`${this.baseUrl}/tts`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        text: input.text,
+        voice_id: input.voiceId,
+        model: input.model,
+        speed: input.speed,
+        expression_tags: input.expressionTags ?? [],
+        output_dir: outputDir
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`Voice preview failed: ${response.status}`);
+    }
+    return await response.json() as RuntimeVoicePreviewResult;
+  }
+
   async validateTags(text: string): Promise<TagValidationResult> {
     const response = await fetch(`${this.baseUrl}/validate-tags`, {
       method: "POST",
@@ -74,7 +109,11 @@ export class AudioClient implements AudioRuntimeClient {
     return await response.json() as LlmPrepResult;
   }
 
-  async batchTts(segments: TtsSegmentRequest[], outputDir: string): Promise<BatchTtsResponse> {
+  async batchTts(
+    segments: TtsSegmentRequest[],
+    outputDir: string,
+    _onProgress?: (progress: BatchTtsProgress) => void
+  ): Promise<BatchTtsResponse> {
     const response = await fetch(`${this.baseUrl}/batch-tts`, {
       method: "POST",
       headers: { "content-type": "application/json" },

@@ -1,10 +1,21 @@
-import type { SpeakerProfile, VoiceDefinition } from "../../shared/types";
+import type { SpeakerProfile, TtsModel, VoiceDefinition } from "../../shared/types";
 import { CasterButton } from "./CasterButton";
+
+interface ActiveVoicePreview {
+  speakerId: string;
+  model: TtsModel;
+  voiceId: string;
+  cacheKey: string;
+}
 
 interface VoiceCastingPanelProps {
   speakers: SpeakerProfile[];
   voices: VoiceDefinition[];
   onChange(speakers: SpeakerProfile[]): void;
+  onPreview(input: { speakerId: string; model: TtsModel; voiceId: string }): Promise<void>;
+  previewLoading: ActiveVoicePreview | null;
+  previewPlaying: ActiveVoicePreview | null;
+  previewError: string | null;
   onSave(): Promise<void>;
   saveState: "idle" | "saving" | "saved" | "error";
   saveError: string | null;
@@ -77,6 +88,9 @@ export function VoiceCastingPanel(props: VoiceCastingPanelProps) {
           {props.saveError ? (
             <span className="save-indicator save-indicator--err">Error</span>
           ) : null}
+          {props.previewError ? (
+            <span className="save-indicator save-indicator--err">Preview Error</span>
+          ) : null}
           <CasterButton variant="ghost" onClick={addSpeaker} disabled={props.speakers.length >= 6}>
             + Add Voice
           </CasterButton>
@@ -92,6 +106,13 @@ export function VoiceCastingPanel(props: VoiceCastingPanelProps) {
           const activeModel = hasActiveModel ? speaker.ttsModel : (models[0] ?? "kokoro");
           const options = voiceOptionsForModel(props.voices, activeModel);
           const selectedVoiceId = options.some((voice) => voice.id === speaker.voiceId) ? speaker.voiceId : (options[0]?.id ?? "");
+          const isPreviewLoading = props.previewLoading?.speakerId === speaker.id
+            && props.previewLoading.model === activeModel
+            && props.previewLoading.voiceId === selectedVoiceId;
+          const isPreviewPlaying = props.previewPlaying?.speakerId === speaker.id
+            && props.previewPlaying.model === activeModel
+            && props.previewPlaying.voiceId === selectedVoiceId;
+          const previewEnabled = activeModel === "kokoro" && Boolean(selectedVoiceId);
           const color = SPEAKER_COLORS[idx % SPEAKER_COLORS.length];
 
           return (
@@ -154,15 +175,32 @@ export function VoiceCastingPanel(props: VoiceCastingPanelProps) {
                   </label>
                 </div>
 
-                <CasterButton
-                  variant="ghost"
-                  size="sm"
-                  className="voice-remove"
-                  onClick={() => removeSpeaker(speaker.id)}
-                  disabled={props.speakers.length <= 1}
-                >
-                  Remove
-                </CasterButton>
+                <div className="voice-card-actions">
+                  <CasterButton
+                    variant="ghost"
+                    size="sm"
+                    className="voice-preview"
+                    loading={Boolean(isPreviewLoading)}
+                    loadingText="Loading\u2026"
+                    onClick={() => void props.onPreview({
+                      speakerId: speaker.id,
+                      model: activeModel,
+                      voiceId: selectedVoiceId
+                    })}
+                    disabled={!previewEnabled}
+                  >
+                    {isPreviewPlaying ? "Stop Preview" : "Play Preview"}
+                  </CasterButton>
+                  <CasterButton
+                    variant="ghost"
+                    size="sm"
+                    className="voice-remove"
+                    onClick={() => removeSpeaker(speaker.id)}
+                    disabled={props.speakers.length <= 1}
+                  >
+                    Remove
+                  </CasterButton>
+                </div>
               </div>
             </article>
           );

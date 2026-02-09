@@ -11,9 +11,12 @@ const IPC_CHANNELS = {
   cancelRender: "app:cancel-render",
   getRenderStatus: "app:get-render-status",
   listVoices: "app:list-voices",
+  previewVoice: "app:preview-voice",
   validateExpressionTags: "app:validate-expression-tags",
   runOptionalLlmPrep: "app:run-optional-llm-prep",
   getSystemHealth: "app:get-system-health",
+  getDefaultRenderOutputDir: "app:get-default-render-output-dir",
+  revealInFileManager: "app:reveal-in-file-manager",
   showOpenFileDialog: "app:show-open-file-dialog",
   showOpenDirectoryDialog: "app:show-open-directory-dialog"
 } as const;
@@ -52,6 +55,9 @@ const api: DesktopApi = {
   listVoices() {
     return ipcRenderer.invoke(IPC_CHANNELS.listVoices);
   },
+  previewVoice(input: Parameters<DesktopApi["previewVoice"]>[0]) {
+    return ipcRenderer.invoke(IPC_CHANNELS.previewVoice, input);
+  },
   validateExpressionTags(text: Parameters<DesktopApi["validateExpressionTags"]>[0]) {
     return ipcRenderer.invoke(IPC_CHANNELS.validateExpressionTags, text);
   },
@@ -60,6 +66,12 @@ const api: DesktopApi = {
   },
   getSystemHealth() {
     return ipcRenderer.invoke(IPC_CHANNELS.getSystemHealth);
+  },
+  getDefaultRenderOutputDir() {
+    return ipcRenderer.invoke(IPC_CHANNELS.getDefaultRenderOutputDir);
+  },
+  revealInFileManager(path: Parameters<DesktopApi["revealInFileManager"]>[0]) {
+    return ipcRenderer.invoke(IPC_CHANNELS.revealInFileManager, path);
   },
   showOpenFileDialog(filters?: Parameters<DesktopApi["showOpenFileDialog"]>[0]) {
     return ipcRenderer.invoke(IPC_CHANNELS.showOpenFileDialog, filters);

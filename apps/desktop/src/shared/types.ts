@@ -57,6 +57,18 @@ export interface RenderMetrics {
 }
 
 export type RenderState = "queued" | "running" | "failed" | "completed" | "canceled";
+export type RenderProgressPhase = "preparing" | "llm-prep" | "synth" | "merge" | "finalizing";
+
+export interface RenderProgress {
+  phase: RenderProgressPhase;
+  percent: number;
+  message: string;
+  approximate: boolean;
+  updatedAt: string;
+  etaSeconds?: number;
+  completedSegments?: number;
+  totalSegments?: number;
+}
 
 export interface RenderJob {
   id: string;
@@ -67,6 +79,7 @@ export interface RenderJob {
   outputMp3Path?: string;
   metrics?: RenderMetrics;
   errorText?: string;
+  progress?: RenderProgress;
 }
 
 export interface ChapterImport {
@@ -124,6 +137,20 @@ export interface VoiceDefinition {
   model: TtsModel;
   label: string;
   description: string;
+}
+
+export interface VoicePreviewInput {
+  text: string;
+  voiceId: string;
+  model: TtsModel;
+  speed: number;
+  expressionTags?: string[];
+}
+
+export interface VoicePreviewResult {
+  mimeType: string;
+  audioBase64: string;
+  engine?: string;
 }
 
 export interface TagValidationResult {

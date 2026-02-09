@@ -8,6 +8,8 @@ import type {
   RenderJob,
   RenderOptions,
   SpeakerProfile,
+  TtsModel,
+  VoicePreviewInput,
   VoiceDefinition
 } from "../../shared/types";
 import { useTheme } from "../components/ThemeContext";
@@ -23,6 +25,27 @@ import { BootstrapSetupScreen } from "../components/BootstrapSetupScreen";
 type View = "library" | "script" | "voices" | "render";
 const DESKTOP_BRIDGE_ERROR =
   "Desktop bridge unavailable. Launch via Electron (`npm run dev`), not in a standalone browser tab.";
+const DEFAULT_VOICE_PREVIEW_TEXT = "The lantern flickered once, and then the story began.";
+
+interface ActiveVoicePreview {
+  speakerId: string;
+  model: TtsModel;
+  voiceId: string;
+  cacheKey: string;
+}
+
+function buildVoicePreviewCacheKey(input: VoicePreviewInput): string {
+  return [input.model, input.voiceId, input.text.trim(), input.speed.toFixed(2)].join("::");
+}
+
+function decodeBase64Audio(base64: string): ArrayBuffer {
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
+}
 
 function extractTagsFromText(text: string): string[] {
   const matches = text.match(/\[([^\]]+)\]/g) ?? [];
@@ -35,7 +58,7 @@ function createDefaultSpeakers(voices: VoiceDefinition[]): SpeakerProfile[] {
 
   if (!narratorVoice) {
     return [
-      { id: crypto.randomUUID(), name: "Narrator", ttsModel: "kokoro", voiceId: "kokoro_narrator" }
+      { id: crypto.randomUUID(), name: "Narrator", ttsModel: "kokoro", voiceId: "af_heart" }
     ];
   }
 
@@ -74,6 +97,9 @@ export function App() {
   const [outputFileName, setOutputFileName] = useState("podcast-output");
   const [speed, setSpeed] = useState(1);
   const [enableLlmPrep, setEnableLlmPrep] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState<ActiveVoicePreview | null>(null);
+  const [previewPlaying, setPreviewPlaying] = useState<ActiveVoicePreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const [bootstrapStatus, setBootstrapStatus] = useState<BootstrapStatus | null>(null);
   const [bootstrapInstallPath, setBootstrapInstallPath] = useState("");
@@ -82,6 +108,12 @@ export function App() {
   const [bootstrapLoadError, setBootstrapLoadError] = useState<string | null>(null);
   const voicesLoadedRef = useRef(false);
   const selectionTouchedRef = useRef(false);
+  const lastBootstrapPhaseRef = useRef<BootstrapStatus["phase"] | null>(null);
+  const lastRenderStateRef = useRef<RenderJob["state"] | null>(null);
+  const outputDirInitializedRef = useRef(false);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const previewObjectUrlCacheRef = useRef<Map<string, string>>(new Map());
+  const previewRequestTokenRef = useRef(0);
 
   const normalizeSelectedPackIds = (candidateIds: string[], status: BootstrapStatus): string[] => {
     const availableIds = new Set(status.modelPacks.map((pack) => pack.id));
@@ -182,6 +214,23 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (!window.app || outputDirInitializedRef.current) {
+      return;
+    }
+    outputDirInitializedRef.current = true;
+    void getDesktopApi()
+      .getDefaultRenderOutputDir()
+      .then((defaultOutputDir) => {
+        if (defaultOutputDir?.trim()) {
+          setOutputDir(defaultOutputDir);
+        }
+      })
+      .catch(() => {
+        // Keep manual entry available even if default path lookup fails.
+      });
+  }, []);
+
+  useEffect(() => {
     if (!bootstrapStatus || bootstrapStatus.phase !== "running") {
       return;
     }
@@ -198,6 +247,17 @@ export function App() {
   useEffect(() => {
     if (!bootstrapStatus) {
       return;
+    }
+
+    if (lastBootstrapPhaseRef.current !== bootstrapStatus.phase) {
+      console.info("[bootstrap-status]", {
+        phase: bootstrapStatus.phase,
+        step: bootstrapStatus.step,
+        percent: bootstrapStatus.percent,
+        message: bootstrapStatus.message,
+        error: bootstrapStatus.error
+      });
+      lastBootstrapPhaseRef.current = bootstrapStatus.phase;
     }
 
     if (bootstrapStatus.phase === "ready" && !voicesLoadedRef.current) {
@@ -219,9 +279,25 @@ export function App() {
         .catch((error) => {
           setRenderError(error instanceof Error ? error.message : String(error));
         });
-    }, 1200);
+    }, 600);
 
     return () => clearInterval(interval);
+  }, [renderJob]);
+
+  useEffect(() => {
+    if (!renderJob) {
+      return;
+    }
+    if (lastRenderStateRef.current === renderJob.state) {
+      return;
+    }
+    console.info("[render-status]", {
+      id: renderJob.id,
+      state: renderJob.state,
+      errorText: renderJob.errorText,
+      outputMp3Path: renderJob.outputMp3Path
+    });
+    lastRenderStateRef.current = renderJob.state;
   }, [renderJob]);
 
   const speakerList = useMemo(() => project?.speakers ?? createDefaultSpeakers(voices), [project, voices]);
@@ -384,6 +460,16 @@ export function App() {
     }
   };
 
+  const revealInFileManager = async (path: string) => {
+    try {
+      await getDesktopApi().revealInFileManager(path);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setRenderError(message);
+      throw new Error(message);
+    }
+  };
+
   const runRender = async () => {
     if (!project) {
       return;
@@ -394,6 +480,9 @@ export function App() {
     try {
       let renderOutputDir = outputDir.trim();
       if (!renderOutputDir) {
+        renderOutputDir = (await getDesktopApi().getDefaultRenderOutputDir())?.trim() ?? "";
+      }
+      if (!renderOutputDir) {
         renderOutputDir = (await browseOutputDirectory())?.trim() ?? "";
       }
 
@@ -402,6 +491,7 @@ export function App() {
         setView("render");
         return;
       }
+      setOutputDir(renderOutputDir);
 
       const options: RenderOptions = {
         outputDir: renderOutputDir,
@@ -441,6 +531,136 @@ export function App() {
     });
     setTagValidationMessage(result.changed ? "LLM prep preview changed text." : "LLM prep preview produced no change.");
   };
+
+  const clearActivePreviewAudio = () => {
+    const current = previewAudioRef.current;
+    if (!current) {
+      return;
+    }
+    current.pause();
+    current.currentTime = 0;
+    current.src = "";
+    current.onended = null;
+    current.onerror = null;
+    previewAudioRef.current = null;
+  };
+
+  const stopVoicePreview = () => {
+    previewRequestTokenRef.current += 1;
+    clearActivePreviewAudio();
+    setPreviewPlaying(null);
+    setPreviewLoading(null);
+  };
+
+  const playVoicePreview = async (url: string, active: ActiveVoicePreview) => {
+    clearActivePreviewAudio();
+    const audio = new Audio(url);
+    previewAudioRef.current = audio;
+    setPreviewPlaying(active);
+    audio.onended = () => {
+      if (previewAudioRef.current !== audio) {
+        return;
+      }
+      previewAudioRef.current = null;
+      setPreviewPlaying((current) => (current?.cacheKey === active.cacheKey ? null : current));
+    };
+    audio.onerror = () => {
+      if (previewAudioRef.current === audio) {
+        previewAudioRef.current = null;
+      }
+      setPreviewPlaying((current) => (current?.cacheKey === active.cacheKey ? null : current));
+      setPreviewError("Voice preview playback failed.");
+    };
+    await audio.play();
+  };
+
+  const previewVoice = async (input: { speakerId: string; model: TtsModel; voiceId: string }) => {
+    if (input.model !== "kokoro") {
+      return;
+    }
+
+    const previewInput: VoicePreviewInput = {
+      text: DEFAULT_VOICE_PREVIEW_TEXT,
+      voiceId: input.voiceId,
+      model: input.model,
+      speed: Number.isFinite(speed) && speed > 0 ? speed : 1,
+      expressionTags: []
+    };
+    const cacheKey = buildVoicePreviewCacheKey(previewInput);
+    const nextActive: ActiveVoicePreview = {
+      ...input,
+      cacheKey
+    };
+
+    const isSameAsCurrent = previewPlaying
+      && previewPlaying.speakerId === input.speakerId
+      && previewPlaying.model === input.model
+      && previewPlaying.voiceId === input.voiceId;
+    if (isSameAsCurrent) {
+      stopVoicePreview();
+      return;
+    }
+
+    setPreviewError(null);
+    const token = previewRequestTokenRef.current + 1;
+    previewRequestTokenRef.current = token;
+    setPreviewLoading(nextActive);
+
+    try {
+      let objectUrl = previewObjectUrlCacheRef.current.get(cacheKey);
+      if (!objectUrl) {
+        const result = await getDesktopApi().previewVoice(previewInput);
+        if (previewRequestTokenRef.current !== token) {
+          return;
+        }
+        const audioBytes = decodeBase64Audio(result.audioBase64);
+        const blob = new Blob([audioBytes], { type: result.mimeType || "audio/wav" });
+        objectUrl = URL.createObjectURL(blob);
+        previewObjectUrlCacheRef.current.set(cacheKey, objectUrl);
+      }
+
+      if (previewRequestTokenRef.current !== token) {
+        return;
+      }
+      await playVoicePreview(objectUrl, nextActive);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setPreviewError(message);
+      setPreviewPlaying(null);
+    } finally {
+      setPreviewLoading((current) => (current?.cacheKey === nextActive.cacheKey ? null : current));
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      clearActivePreviewAudio();
+      for (const url of previewObjectUrlCacheRef.current.values()) {
+        URL.revokeObjectURL(url);
+      }
+      previewObjectUrlCacheRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!project || !previewPlaying) {
+      return;
+    }
+    const stillAvailable = project.speakers.some((speaker) => (
+      speaker.id === previewPlaying.speakerId
+      && speaker.ttsModel === previewPlaying.model
+      && speaker.voiceId === previewPlaying.voiceId
+    ));
+    if (!stillAvailable) {
+      stopVoicePreview();
+    }
+  }, [project, previewPlaying]);
+
+  useEffect(() => {
+    if (view !== "voices" && previewPlaying) {
+      stopVoicePreview();
+    }
+  }, [previewPlaying, view]);
 
   if (!bootstrapStatus || bootstrapStatus.phase !== "ready") {
     const status = bootstrapLoadError && !bootstrapStatus
@@ -575,6 +795,10 @@ export function App() {
           onChange={(nextSpeakers) => {
             setProject({ ...project, speakers: nextSpeakers });
           }}
+          onPreview={previewVoice}
+          previewLoading={previewLoading}
+          previewPlaying={previewPlaying}
+          previewError={previewError}
           onSave={saveSpeakers}
           saveState={saveState}
           saveError={saveError}
@@ -583,6 +807,7 @@ export function App() {
 
       {view === "render" && project ? (
         <RenderDeskPanel
+          projectTitle={project.title}
           outputDir={outputDir}
           outputFileName={outputFileName}
           speed={speed}
@@ -594,6 +819,7 @@ export function App() {
           setSpeed={setSpeed}
           setEnableLlmPrep={setEnableLlmPrep}
           onBrowseOutputDir={browseOutputDirectory}
+          onRevealInFileManager={revealInFileManager}
           onRender={runRender}
           onCancel={cancelRender}
         />

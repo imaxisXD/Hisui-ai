@@ -1836,6 +1836,18 @@ input[type="checkbox"] {
   margin-top: 0.25rem;
 }
 
+.voice-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.voice-preview,
+.voice-remove {
+  margin-top: 0.25rem;
+}
+
 /* ============================================================
    Render Desk Panel
    ============================================================ */
@@ -2176,6 +2188,127 @@ input[type="checkbox"] {
   animation: renderSpin 0.7s linear infinite;
 }
 
+.render-success {
+  margin: 1.1rem 1.25rem 0;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(52, 211, 153, 0.07), rgba(52, 211, 153, 0.01));
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.render-success-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.render-success-kicker {
+  margin: 0;
+  font-family: "GeistSans", sans-serif;
+  color: var(--success);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.render-success-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.render-overwrite-confirm {
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.08);
+  border-radius: 6px;
+  padding: 0.7rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.render-overwrite-confirm p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.render-overwrite-confirm code {
+  font-family: "GeistMono", monospace;
+  color: var(--warning);
+}
+
+.render-overwrite-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.render-metrics--success {
+  padding-top: 0.15rem;
+}
+
+.render-output--success {
+  padding-top: 0.75rem;
+}
+
+.render-copy-status {
+  margin-left: auto;
+  font-family: "GeistMono", monospace;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.render-copy-status--copied {
+  color: var(--success);
+}
+
+.render-copy-status--failed {
+  color: var(--error);
+}
+
+.render-audio-wrap {
+  padding-top: 0.15rem;
+}
+
+.render-audio-wrap audio {
+  width: 100%;
+  height: 34px;
+}
+
+.render-config--summary {
+  padding-top: 0.9rem;
+}
+
+.render-settings-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.render-settings-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.render-settings-summary-row--meta {
+  font-family: "GeistMono", monospace;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.render-settings-summary-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.15rem;
+}
+
 /* Render status */
 .render-status {
   margin: 0 1.25rem 1.25rem;
@@ -2233,6 +2366,44 @@ input[type="checkbox"] {
   font-family: "GeistMono", monospace;
   font-size: 0.72rem;
   color: var(--text-muted);
+}
+
+.render-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+}
+
+.render-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.render-progress-phase {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.render-progress-percent {
+  font-family: "GeistMono", monospace;
+  font-size: 0.78rem;
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.render-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-family: "GeistMono", monospace;
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .render-metrics {
@@ -3031,6 +3202,16 @@ input[type="checkbox"] {
     flex-direction: column;
   }
 
+  .render-success-header,
+  .render-settings-summary-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .render-settings-summary-actions {
+    justify-content: flex-start;
+  }
+
   .layout-folio .app-shell {
     grid-template-rows: 48px 40px 1fr;
   }
@@ -3063,7 +3244,7 @@ input[type="checkbox"] {
     align-items: stretch;
   }
 
-  .render-path-browse {
+  .render-success-actions .caster-btn {
     width: 100%;
   }
 }
