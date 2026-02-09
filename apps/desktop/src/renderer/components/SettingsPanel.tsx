@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useTheme, type ThemeName } from "./ThemeContext";
-import { CasterButton } from "./CasterButton";
+import { HisuiButton } from "./HisuiButton";
 
 interface SettingsPanelProps {
   onClose(): void;
@@ -24,17 +24,17 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       <div className="settings-modal" role="dialog" aria-modal="true" aria-label="Settings" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
           <h2>Settings</h2>
-          <CasterButton variant="ghost" size="sm" onClick={onClose}>Close</CasterButton>
+          <HisuiButton variant="ghost" size="sm" onClick={onClose}>Close</HisuiButton>
         </div>
 
         <div className="settings-section">
           <h3>Theme</h3>
           <div className="theme-picker">
             <ThemeCard
-              name="caster"
-              label="Caster"
+              name="hisui"
+              label="Hisui"
               description="Dark broadcast studio"
-              selected={theme === "caster"}
+              selected={theme === "hisui"}
               onSelect={setTheme}
             />
             <ThemeCard
@@ -70,7 +70,7 @@ function ThemeCard({
       onClick={() => onSelect(name)}
     >
       <div className={`theme-preview theme-preview-${name}`}>
-        {name === "caster" ? (
+        {name === "hisui" ? (
           <>
             <div className="preview-sidebar" />
             <div className="preview-content">

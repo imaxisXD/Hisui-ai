@@ -8,11 +8,11 @@
     "services/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @caster/desktop",
-    "build": "npm run build -w @caster/desktop",
-    "package": "npm run package -w @caster/desktop",
-    "typecheck": "npm run typecheck -w @caster/desktop",
-    "test": "npm run test -w @caster/desktop",
+    "dev": "npm run dev -w @hisui/desktop",
+    "build": "npm run build -w @hisui/desktop",
+    "package": "npm run package -w @hisui/desktop",
+    "typecheck": "npm run typecheck -w @hisui/desktop",
+    "test": "npm run test -w @hisui/desktop",
     "seed:offline-cache": "npm run seed:offline-cache -w @local-podcast/audio-sidecar",
     "seed:kokoro-node": "npm run seed:model -w @local-podcast/kokoro-node --"
   },

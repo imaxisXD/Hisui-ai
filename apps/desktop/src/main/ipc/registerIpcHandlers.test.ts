@@ -11,7 +11,7 @@ vi.mock("electron", () => ({
   app: {
     isPackaged: false,
     getPath: () => "/tmp",
-    getName: () => "Caster"
+    getName: () => "Hisui"
   },
   BrowserWindow: {
     fromWebContents: () => null,

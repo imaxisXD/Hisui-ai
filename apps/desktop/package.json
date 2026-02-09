@@ -1,9 +1,9 @@
 {
-  "name": "@caster/desktop",
+  "name": "@hisui/desktop",
   "version": "0.2.0",
   "private": true,
-  "description": "Caster — Turn books into multi-voice podcasts",
-  "author": "Caster Team",
+  "description": "Hisui — Turn books into multi-voice podcasts",
+  "author": "Hisui Team",
   "main": "dist/main/main/main.js",
   "type": "module",
   "scripts": {

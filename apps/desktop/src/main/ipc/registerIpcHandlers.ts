@@ -185,7 +185,7 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     if (!previewText) {
       throw new Error("Voice preview text cannot be empty.");
     }
-    const outputDir = await mkdtemp(join(tmpdir(), "caster-voice-preview-"));
+    const outputDir = await mkdtemp(join(tmpdir(), "hisui-voice-preview-"));
     try {
       const preview = await deps.audioSidecar.client.previewVoice({
         ...input,
@@ -300,7 +300,7 @@ function getDefaultRenderOutputDir(): string {
 function resolveOutputFolderName(appName: string): string {
   const normalized = appName.trim();
   if (!normalized || normalized.toLowerCase() === "electron") {
-    return "Caster";
+    return "Hisui";
   }
   return normalized;
 }

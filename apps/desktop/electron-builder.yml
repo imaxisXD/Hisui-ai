@@ -1,5 +1,5 @@
-appId: com.caster.desktop
-productName: Caster
+appId: com.hisui.desktop
+productName: Hisui
 directories:
   output: out
   buildResources: ../../resources

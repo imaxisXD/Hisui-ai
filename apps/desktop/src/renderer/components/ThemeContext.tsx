@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-export type ThemeName = "caster" | "folio";
+export type ThemeName = "hisui" | "folio";
 
 interface ThemeContextValue {
   theme: ThemeName;
@@ -8,7 +8,7 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "caster",
+  theme: "hisui",
   setTheme: () => {}
 });
 
@@ -17,11 +17,11 @@ const STORAGE_KEY = "app-theme";
 function readStoredTheme(): ThemeName {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "caster" || stored === "folio") {
+    if (stored === "hisui" || stored === "folio") {
       return stored;
     }
   } catch {}
-  return "caster";
+  return "hisui";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

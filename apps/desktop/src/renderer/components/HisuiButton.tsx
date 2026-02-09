@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 type ButtonVariant = "primary" | "ghost" | "browse";
 type ButtonSize = "sm" | "md" | "lg";
 
-interface CasterButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className"> {
+interface HisuiButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className"> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   loading?: boolean;
@@ -12,7 +12,7 @@ interface CasterButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>
   className?: string;
 }
 
-export function CasterButton({
+export function HisuiButton({
   variant = "primary",
   size = "md",
   loading = false,
@@ -22,32 +22,32 @@ export function CasterButton({
   disabled,
   className,
   ...rest
-}: CasterButtonProps) {
+}: HisuiButtonProps) {
   const classes = [
-    "caster-btn",
-    `caster-btn--${variant}`,
-    `caster-btn--${size}`,
-    loading && "caster-btn--loading",
+    "hisui-btn",
+    `hisui-btn--${variant}`,
+    `hisui-btn--${size}`,
+    loading && "hisui-btn--loading",
     className
   ].filter(Boolean).join(" ");
 
   return (
     <button className={classes} disabled={disabled || loading} {...rest}>
-      <span className="caster-btn__edge" aria-hidden="true" />
-      <span className="caster-btn__surface">
+      <span className="hisui-btn__edge" aria-hidden="true" />
+      <span className="hisui-btn__surface">
         {loading ? (
-          <span className="caster-btn__loader">
-            <span className="caster-btn__spinner" aria-hidden="true" />
+          <span className="hisui-btn__loader">
+            <span className="hisui-btn__spinner" aria-hidden="true" />
             <span>{loadingText ?? children}</span>
           </span>
         ) : (
           <>
-            {icon ? <span className="caster-btn__icon" aria-hidden="true">{icon}</span> : null}
-            <span className="caster-btn__label">{children}</span>
+            {icon ? <span className="hisui-btn__icon" aria-hidden="true">{icon}</span> : null}
+            <span className="hisui-btn__label">{children}</span>
           </>
         )}
       </span>
-      <span className="caster-btn__glow" aria-hidden="true" />
+      <span className="hisui-btn__glow" aria-hidden="true" />
     </button>
   );
 }

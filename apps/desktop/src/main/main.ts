@@ -54,9 +54,9 @@ async function createMainWindow(): Promise<void> {
 
   if (process.env.VITE_DEV_SERVER_URL) {
     await mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-    if (process.env.CASTER_OPEN_DEVTOOLS === "1") {
+    if (process.env.HISUI_OPEN_DEVTOOLS === "1") {
       mainWindow.webContents.openDevTools({ mode: "detach" });
-      logInfo("main", "devtools opened (CASTER_OPEN_DEVTOOLS=1)");
+      logInfo("main", "devtools opened (HISUI_OPEN_DEVTOOLS=1)");
     }
     logInfo("main", "loaded dev renderer URL", { url: process.env.VITE_DEV_SERVER_URL });
   } else {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { RenderJob } from "../../shared/types";
-import { CasterButton } from "./CasterButton";
+import { HisuiButton } from "./HisuiButton";
 import { buildRenderTargetPath, shouldConfirmOverwrite, toFileUrl } from "./renderDeskState";
 
 interface RenderDeskPanelProps {
@@ -213,11 +213,11 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
         </div>
         <div className="render-toolbar-right">
           {inProgress ? (
-            <CasterButton variant="ghost" onClick={() => void props.onCancel()}>Cancel</CasterButton>
+            <HisuiButton variant="ghost" onClick={() => void props.onCancel()}>Cancel</HisuiButton>
           ) : null}
 
           {!isComplete ? (
-            <CasterButton
+            <HisuiButton
               variant="primary"
               size="lg"
               className="render-btn-start"
@@ -228,7 +228,7 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
               disabled={inProgress}
             >
               {isErrorState ? "Render Again" : "Start Render"}
-            </CasterButton>
+            </HisuiButton>
           ) : null}
         </div>
       </div>
@@ -241,18 +241,18 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
           </div>
 
           <div className="render-success-actions">
-            <CasterButton variant="primary" onClick={() => void handlePlayOutput()}>
+            <HisuiButton variant="primary" onClick={() => void handlePlayOutput()}>
               Play Output
-            </CasterButton>
-            <CasterButton variant="browse" onClick={() => void handleRevealOutput()}>
+            </HisuiButton>
+            <HisuiButton variant="browse" onClick={() => void handleRevealOutput()}>
               Reveal in Finder
-            </CasterButton>
-            <CasterButton variant="ghost" onClick={() => void handleCopyOutputPath()}>
+            </HisuiButton>
+            <HisuiButton variant="ghost" onClick={() => void handleCopyOutputPath()}>
               Copy Path
-            </CasterButton>
-            <CasterButton variant="ghost" onClick={() => void handleRenderAgain(false)}>
+            </HisuiButton>
+            <HisuiButton variant="ghost" onClick={() => void handleRenderAgain(false)}>
               Render Again
-            </CasterButton>
+            </HisuiButton>
           </div>
 
           {confirmOverwrite ? (
@@ -263,12 +263,12 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
                 <code>{props.renderJob.outputMp3Path}</code>
               </p>
               <div className="render-overwrite-actions">
-                <CasterButton variant="primary" onClick={() => void handleRenderAgain(true)}>
+                <HisuiButton variant="primary" onClick={() => void handleRenderAgain(true)}>
                   Overwrite &amp; Render
-                </CasterButton>
-                <CasterButton variant="ghost" onClick={() => setConfirmOverwrite(false)}>
+                </HisuiButton>
+                <HisuiButton variant="ghost" onClick={() => setConfirmOverwrite(false)}>
                   Cancel
-                </CasterButton>
+                </HisuiButton>
               </div>
             </div>
           ) : null}
@@ -336,7 +336,7 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
                   <input
                     value={props.outputDir}
                     onChange={(event) => props.setOutputDir(event.target.value)}
-                    placeholder="/Users/you/Desktop/Caster"
+                    placeholder="/Users/you/Desktop/Hisui"
                     aria-label="Output directory path"
                   />
                   <button
@@ -430,9 +430,9 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
               <span>LLM prep: {props.enableLlmPrep ? "Enabled" : "Disabled"}</span>
             </div>
             <div className="render-settings-summary-actions">
-              <CasterButton variant="ghost" onClick={() => setShowSuccessSettings(true)}>
+              <HisuiButton variant="ghost" onClick={() => setShowSuccessSettings(true)}>
                 Edit settings
-              </CasterButton>
+              </HisuiButton>
             </div>
           </div>
         </div>

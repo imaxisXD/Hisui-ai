@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ImportResult } from "../../shared/types";
-import { CasterButton } from "./CasterButton";
+import { HisuiButton } from "./HisuiButton";
 
 type IntakeMode = "file" | "paste";
 
@@ -43,7 +43,7 @@ export function LibraryImportPanel(props: LibraryImportPanelProps) {
             <h2>Bring your words</h2>
             <p className="library-hero-sub">
               Import a file from your machine or paste text directly.
-              Caster extracts chapters and prepares segments for voice casting.
+              Hisui extracts chapters and prepares segments for voice casting.
             </p>
           </div>
 
@@ -90,14 +90,14 @@ export function LibraryImportPanel(props: LibraryImportPanelProps) {
                   <span className="dropzone-header-text">Choose a book file</span>
                 </div>
 
-                <CasterButton
+                <HisuiButton
                   variant="browse"
                   size="md"
                   icon={FolderIcon}
                   onClick={() => void props.onBrowse()}
                 >
                   Browse files
-                </CasterButton>
+                </HisuiButton>
 
                 <div className="dropzone-divider">
                   <span className="dropzone-divider-line" aria-hidden="true" />
@@ -118,7 +118,7 @@ export function LibraryImportPanel(props: LibraryImportPanelProps) {
                   <span className="format-chip">.pdf</span>
                   <span className="format-chip">.txt</span>
                 </div>
-                <CasterButton
+                <HisuiButton
                   variant="primary"
                   size="lg"
                   loading={props.importing}
@@ -127,7 +127,7 @@ export function LibraryImportPanel(props: LibraryImportPanelProps) {
                   disabled={!props.filePath.trim()}
                 >
                   Import Book
-                </CasterButton>
+                </HisuiButton>
               </div>
             </div>
           ) : (
@@ -156,14 +156,14 @@ export function LibraryImportPanel(props: LibraryImportPanelProps) {
                   <span className="paste-char-count" aria-label="Character count">
                     {pasteCharCount.toLocaleString()} chars
                   </span>
-                  <CasterButton
+                  <HisuiButton
                     variant="primary"
                     size="lg"
                     onClick={handlePasteSubmit}
                     disabled={!canSubmitPaste}
                   >
                     Use This Text
-                  </CasterButton>
+                  </HisuiButton>
                 </div>
               </div>
             </div>
@@ -204,12 +204,12 @@ export function LibraryImportPanel(props: LibraryImportPanelProps) {
           </article>
 
           <div className="library-actions">
-            <CasterButton variant="primary" size="lg" onClick={() => void props.onCreateProject()}>
+            <HisuiButton variant="primary" size="lg" onClick={() => void props.onCreateProject()}>
               Create Project &amp; Continue
-            </CasterButton>
-            <CasterButton variant="ghost" onClick={() => void props.onImport()} disabled={props.importing}>
+            </HisuiButton>
+            <HisuiButton variant="ghost" onClick={() => void props.onImport()} disabled={props.importing}>
               Re-import
-            </CasterButton>
+            </HisuiButton>
           </div>
 
           {props.importError ? (

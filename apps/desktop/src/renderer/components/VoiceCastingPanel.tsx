@@ -1,5 +1,5 @@
 import type { SpeakerProfile, TtsModel, VoiceDefinition } from "../../shared/types";
-import { CasterButton } from "./CasterButton";
+import { HisuiButton } from "./HisuiButton";
 
 interface ActiveVoicePreview {
   speakerId: string;
@@ -91,12 +91,12 @@ export function VoiceCastingPanel(props: VoiceCastingPanelProps) {
           {props.previewError ? (
             <span className="save-indicator save-indicator--err">Preview Error</span>
           ) : null}
-          <CasterButton variant="ghost" onClick={addSpeaker} disabled={props.speakers.length >= 6}>
+          <HisuiButton variant="ghost" onClick={addSpeaker} disabled={props.speakers.length >= 6}>
             + Add Voice
-          </CasterButton>
-          <CasterButton variant="primary" loading={props.saveState === "saving"} loadingText="Saving\u2026" onClick={() => void props.onSave()}>
+          </HisuiButton>
+          <HisuiButton variant="primary" loading={props.saveState === "saving"} loadingText="Saving\u2026" onClick={() => void props.onSave()}>
             Save Casting
-          </CasterButton>
+          </HisuiButton>
         </div>
       </div>
 
@@ -176,7 +176,7 @@ export function VoiceCastingPanel(props: VoiceCastingPanelProps) {
                 </div>
 
                 <div className="voice-card-actions">
-                  <CasterButton
+                  <HisuiButton
                     variant="ghost"
                     size="sm"
                     className="voice-preview"
@@ -190,8 +190,8 @@ export function VoiceCastingPanel(props: VoiceCastingPanelProps) {
                     disabled={!previewEnabled}
                   >
                     {isPreviewPlaying ? "Stop Preview" : "Play Preview"}
-                  </CasterButton>
-                  <CasterButton
+                  </HisuiButton>
+                  <HisuiButton
                     variant="ghost"
                     size="sm"
                     className="voice-remove"
@@ -199,7 +199,7 @@ export function VoiceCastingPanel(props: VoiceCastingPanelProps) {
                     disabled={props.speakers.length <= 1}
                   >
                     Remove
-                  </CasterButton>
+                  </HisuiButton>
                 </div>
               </div>
             </article>

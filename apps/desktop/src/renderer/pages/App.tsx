@@ -13,7 +13,7 @@ import type {
   VoiceDefinition
 } from "../../shared/types";
 import { useTheme } from "../components/ThemeContext";
-import { CasterNav } from "../components/CasterNav";
+import { HisuiNav } from "../components/HisuiNav";
 import { FolioNav } from "../components/FolioNav";
 import { SettingsPanel } from "../components/SettingsPanel";
 import { LibraryImportPanel } from "../components/LibraryImportPanel";
@@ -839,8 +839,8 @@ export function App() {
   return (
     <>
       <main className="app-shell">
-        {theme === "caster" ? (
-          <CasterNav
+        {theme === "hisui" ? (
+          <HisuiNav
             view={view}
             onChange={setView}
             projectTitle={project?.title ?? ""}

@@ -1,6 +1,6 @@
 import type { BootstrapStatus, KokoroBackendMode } from "../../shared/types";
 import { useTheme } from "./ThemeContext";
-import { CasterButton } from "./CasterButton";
+import { HisuiButton } from "./HisuiButton";
 
 interface BootstrapSetupScreenProps {
   status: BootstrapStatus | null;
@@ -40,7 +40,7 @@ export function BootstrapSetupScreen({
   const trimmedDefaultPath = defaultInstallPath.trim();
   const usesDefaultPath = trimmedDefaultPath.length > 0 && installPath.trim() === trimmedDefaultPath;
 
-  const appName = theme === "caster" ? "Caster" : "Folio";
+  const appName = theme === "hisui" ? "Hisui" : "Folio";
 
   return (
     <main className="setup-shell">
@@ -96,25 +96,25 @@ export function BootstrapSetupScreen({
               value={installPath}
               disabled={!canEditInstallPath}
               onChange={(event) => onInstallPathChange(event.target.value)}
-              placeholder="/Users/you/Library/Application Support/Caster/offline-runtime"
+              placeholder="/Users/you/Library/Application Support/Hisui/offline-runtime"
             />
             <div className="setup-install-actions">
-              <CasterButton
+              <HisuiButton
                 variant="browse"
                 size="sm"
                 onClick={onBrowseInstallPath}
                 disabled={!canPickInstallPath}
               >
                 Browse
-              </CasterButton>
-              <CasterButton
+              </HisuiButton>
+              <HisuiButton
                 variant="ghost"
                 size="sm"
                 onClick={onUseDefaultInstallPath}
                 disabled={!canEditInstallPath || trimmedDefaultPath.length === 0 || usesDefaultPath}
               >
                 Use Default
-              </CasterButton>
+              </HisuiButton>
             </div>
             {trimmedDefaultPath ? (
               <p className="setup-default-path">
@@ -203,9 +203,9 @@ export function BootstrapSetupScreen({
         ) : null}
 
         <div className="setup-action">
-          <CasterButton variant="primary" size="lg" onClick={onStart} disabled={!canStart || !installPath.trim()}>
+          <HisuiButton variant="primary" size="lg" onClick={onStart} disabled={!canStart || !installPath.trim()}>
             {status?.firstRun ? "Install & Start" : "Start Services"}
-          </CasterButton>
+          </HisuiButton>
         </div>
       </section>
     </main>

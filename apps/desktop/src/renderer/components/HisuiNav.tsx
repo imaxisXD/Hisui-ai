@@ -2,7 +2,7 @@ import { useState } from "react";
 
 type View = "library" | "script" | "voices" | "render";
 
-interface CasterNavProps {
+interface HisuiNavProps {
   view: View;
   onChange(view: View): void;
   projectTitle: string;
@@ -19,7 +19,7 @@ const stages: Array<{ id: View; label: string; number: string; desc: string }> =
 
 const stageIndex: Record<View, number> = { library: 0, script: 1, voices: 2, render: 3 };
 
-export function CasterNav({ view, onChange, projectTitle, onOpenSettings, onLlmPreview }: CasterNavProps) {
+export function HisuiNav({ view, onChange, projectTitle, onOpenSettings, onLlmPreview }: HisuiNavProps) {
   const currentIdx = stageIndex[view];
 
   return (
@@ -28,7 +28,7 @@ export function CasterNav({ view, onChange, projectTitle, onOpenSettings, onLlmP
       <header className="command-bar">
         <div className="command-bar-left">
           <div className="brand-mark">
-            <span className="brand-wordmark">Caster</span>
+            <span className="brand-wordmark">Hisui</span>
           </div>
           {projectTitle ? (
             <div className="project-badge">

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Project, SpeakerProfile } from "../../shared/types";
-import { CasterButton } from "./CasterButton";
+import { HisuiButton } from "./HisuiButton";
 
 interface ScriptStudioPanelProps {
   project: Project;
@@ -43,9 +43,9 @@ export function ScriptStudioPanel(props: ScriptStudioPanelProps) {
           {props.saveError ? (
             <span className="save-indicator save-indicator--err">Error</span>
           ) : null}
-          <CasterButton variant="primary" loading={props.saveState === "saving"} loadingText="Saving\u2026" onClick={() => void props.onSave()}>
+          <HisuiButton variant="primary" loading={props.saveState === "saving"} loadingText="Saving\u2026" onClick={() => void props.onSave()}>
             Save Edits
-          </CasterButton>
+          </HisuiButton>
         </div>
       </div>
 
@@ -107,9 +107,9 @@ export function ScriptStudioPanel(props: ScriptStudioPanelProps) {
                     />
 
                     <div className="segment-card-bottom">
-                      <CasterButton variant="ghost" size="sm" onClick={() => void props.onValidate(segment.text)}>
+                      <HisuiButton variant="ghost" size="sm" onClick={() => void props.onValidate(segment.text)}>
                         Validate Tags
-                      </CasterButton>
+                      </HisuiButton>
                       <span className="segment-hint">
                         Use [laughs], [sighs], [whispers]
                       </span>

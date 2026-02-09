@@ -28,9 +28,9 @@
 }
 
 /* ============================================================
-   Theme: Caster — Broadcast Console (Dark)
+   Theme: Hisui — Broadcast Console (Dark)
    ============================================================ */
-[data-theme="caster"] {
+[data-theme="hisui"] {
   color-scheme: dark;
   --bg-primary: #07070c;
   --bg-secondary: #0e0e15;
@@ -182,8 +182,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Subtle noise overlay for Caster theme */
-.layout-caster body::before {
+/* Subtle noise overlay for Hisui theme */
+.layout-hisui body::before {
   content: "";
   position: fixed;
   inset: 0;
@@ -211,7 +211,7 @@ h1 {
 }
 
 /* ============================================================
-   App Shell — Caster (Broadcast Console)
+   App Shell — Hisui (Broadcast Console)
 
    Layout:
    ┌──────────────────────────────┐
@@ -224,14 +224,14 @@ h1 {
    │  Stage Pipeline (72px)       │
    └──────────────────────────────┘
    ============================================================ */
-.layout-caster .app-shell {
+.layout-hisui .app-shell {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: 44px 1fr 72px;
 }
 
-.layout-caster .workspace {
+.layout-hisui .workspace {
   grid-row: 2;
   padding: 1.25rem 2rem;
   display: flex;
@@ -243,29 +243,29 @@ h1 {
   -ms-overflow-style: none;
 }
 
-.layout-caster .workspace::-webkit-scrollbar {
+.layout-hisui .workspace::-webkit-scrollbar {
   width: 0;
   height: 0;
 }
 
-.layout-caster .panel,
-.layout-caster .chapter-rail,
-.layout-caster .segment-editor,
-.layout-caster .settings-modal {
+.layout-hisui .panel,
+.layout-hisui .chapter-rail,
+.layout-hisui .segment-editor,
+.layout-hisui .settings-modal {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-.layout-caster .panel::-webkit-scrollbar,
-.layout-caster .chapter-rail::-webkit-scrollbar,
-.layout-caster .segment-editor::-webkit-scrollbar,
-.layout-caster .settings-modal::-webkit-scrollbar {
+.layout-hisui .panel::-webkit-scrollbar,
+.layout-hisui .chapter-rail::-webkit-scrollbar,
+.layout-hisui .segment-editor::-webkit-scrollbar,
+.layout-hisui .settings-modal::-webkit-scrollbar {
   width: 0;
   height: 0;
 }
 
 /* ============================================================
-   Command Bar (Caster)
+   Command Bar (Hisui)
    ============================================================ */
 .command-bar {
   grid-row: 1;
@@ -380,7 +380,7 @@ h1 {
 }
 
 /* ============================================================
-   Stage Pipeline (Caster — bottom nav)
+   Stage Pipeline (Hisui — bottom nav)
    ============================================================ */
 .stage-pipeline {
   grid-row: 3;
@@ -667,9 +667,9 @@ button.icon-btn:hover {
 }
 
 /* ============================================================
-   CasterButton component styles
+   HisuiButton component styles
    ============================================================ */
-.caster-btn {
+.hisui-btn {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -685,11 +685,11 @@ button.icon-btn:hover {
   transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 150ms ease;
 }
 
-.caster-btn:active:not(:disabled) {
+.hisui-btn:active:not(:disabled) {
   transform: translateY(1px);
 }
 
-.caster-btn__edge {
+.hisui-btn__edge {
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -697,7 +697,7 @@ button.icon-btn:hover {
   z-index: 0;
 }
 
-.caster-btn__surface {
+.hisui-btn__surface {
   position: relative;
   z-index: 1;
   display: inline-flex;
@@ -709,7 +709,7 @@ button.icon-btn:hover {
   white-space: nowrap;
 }
 
-.caster-btn__glow {
+.hisui-btn__glow {
   position: absolute;
   inset: -4px;
   border-radius: 10px;
@@ -719,25 +719,25 @@ button.icon-btn:hover {
   transition: opacity 250ms ease;
 }
 
-.caster-btn__icon {
+.hisui-btn__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.caster-btn__label {
+.hisui-btn__label {
   display: inline-flex;
   align-items: center;
 }
 
-.caster-btn__loader {
+.hisui-btn__loader {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
 }
 
-.caster-btn__spinner {
+.hisui-btn__spinner {
   display: inline-block;
   width: 14px;
   height: 14px;
@@ -747,12 +747,12 @@ button.icon-btn:hover {
   animation: spin 600ms linear infinite;
 }
 
-.caster-btn--loading {
+.hisui-btn--loading {
   pointer-events: none;
 }
 
 /* Primary — lit edge + glow bloom */
-.caster-btn--primary .caster-btn__surface {
+.hisui-btn--primary .hisui-btn__surface {
   background: var(--accent);
   color: #fff;
   font-weight: 600;
@@ -761,35 +761,35 @@ button.icon-btn:hover {
     inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
 }
 
-.caster-btn--primary .caster-btn__edge {
+.hisui-btn--primary .hisui-btn__edge {
   background: linear-gradient(to bottom, transparent 60%, rgba(0, 0, 0, 0.3));
   box-shadow: 0 2px 0 0 var(--accent-dim);
 }
 
-.caster-btn--primary .caster-btn__glow {
+.hisui-btn--primary .hisui-btn__glow {
   background: radial-gradient(ellipse at center, var(--accent-soft) 0%, transparent 70%);
 }
 
-.caster-btn--primary:hover:not(:disabled) .caster-btn__surface {
+.hisui-btn--primary:hover:not(:disabled) .hisui-btn__surface {
   background: var(--accent-hover);
 }
 
-.caster-btn--primary:hover:not(:disabled) .caster-btn__glow {
+.hisui-btn--primary:hover:not(:disabled) .hisui-btn__glow {
   opacity: 1;
 }
 
-.caster-btn--primary:active:not(:disabled) .caster-btn__edge {
+.hisui-btn--primary:active:not(:disabled) .hisui-btn__edge {
   box-shadow: 0 0 0 0 var(--accent-dim);
 }
 
-.caster-btn--primary:active:not(:disabled) .caster-btn__surface {
+.hisui-btn--primary:active:not(:disabled) .hisui-btn__surface {
   box-shadow:
     0 0 0 0 rgba(0, 0, 0, 0.25),
     inset 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 /* Ghost — border sweep */
-.caster-btn--ghost .caster-btn__surface {
+.hisui-btn--ghost .hisui-btn__surface {
   background: transparent;
   color: var(--text-primary);
   font-weight: 500;
@@ -797,23 +797,23 @@ button.icon-btn:hover {
   transition: border-color 200ms ease, background-color 200ms ease, box-shadow 200ms ease;
 }
 
-.caster-btn--ghost .caster-btn__edge,
-.caster-btn--ghost .caster-btn__glow {
+.hisui-btn--ghost .hisui-btn__edge,
+.hisui-btn--ghost .hisui-btn__glow {
   display: none;
 }
 
-.caster-btn--ghost:hover:not(:disabled) .caster-btn__surface {
+.hisui-btn--ghost:hover:not(:disabled) .hisui-btn__surface {
   border-color: var(--accent-ghost-border);
   background: var(--bg-hover);
   box-shadow: inset 0 0 0 1px var(--accent-ghost-border);
 }
 
-.caster-btn--ghost:active:not(:disabled) .caster-btn__surface {
+.hisui-btn--ghost:active:not(:disabled) .hisui-btn__surface {
   background: var(--bg-surface);
 }
 
 /* Browse — warm amber with glow */
-.caster-btn--browse .caster-btn__surface {
+.hisui-btn--browse .hisui-btn__surface {
   background: var(--browse-soft);
   color: var(--browse);
   font-weight: 600;
@@ -821,51 +821,51 @@ button.icon-btn:hover {
   transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 200ms ease;
 }
 
-.caster-btn--browse .caster-btn__edge {
+.hisui-btn--browse .hisui-btn__edge {
   display: none;
 }
 
-.caster-btn--browse .caster-btn__glow {
+.hisui-btn--browse .hisui-btn__glow {
   background: radial-gradient(ellipse at center, var(--browse-soft) 0%, transparent 70%);
 }
 
-.caster-btn--browse:hover:not(:disabled) .caster-btn__surface {
+.hisui-btn--browse:hover:not(:disabled) .hisui-btn__surface {
   background: rgba(240, 184, 102, 0.18);
   border-color: var(--browse);
   color: var(--browse-hover);
   box-shadow: inset 0 0 0 1px rgba(240, 184, 102, 0.15);
 }
 
-.caster-btn--browse:hover:not(:disabled) .caster-btn__glow {
+.hisui-btn--browse:hover:not(:disabled) .hisui-btn__glow {
   opacity: 1;
 }
 
-.caster-btn--browse:active:not(:disabled) .caster-btn__surface {
+.hisui-btn--browse:active:not(:disabled) .hisui-btn__surface {
   background: rgba(240, 184, 102, 0.25);
 }
 
 /* Size variants */
-.caster-btn--sm .caster-btn__surface {
+.hisui-btn--sm .hisui-btn__surface {
   padding: 0.25rem 0.55rem;
   font-size: 0.75rem;
 }
 
-.caster-btn--md .caster-btn__surface {
+.hisui-btn--md .hisui-btn__surface {
   padding: 0.45rem 1rem;
   font-size: 0.82rem;
 }
 
-.caster-btn--lg .caster-btn__surface {
+.hisui-btn--lg .hisui-btn__surface {
   padding: 0.6rem 1.5rem;
   font-size: 0.88rem;
 }
 
-.caster-btn:disabled {
+.hisui-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
 
-.caster-btn:disabled .caster-btn__glow {
+.hisui-btn:disabled .hisui-btn__glow {
   display: none;
 }
 
@@ -3005,27 +3005,27 @@ input[type="checkbox"] {
   overflow: hidden;
 }
 
-.theme-preview-caster {
+.theme-preview-hisui {
   background: #07070c;
 }
 
-.theme-preview-caster .preview-sidebar {
+.theme-preview-hisui .preview-sidebar {
   background: #131320;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.theme-preview-caster .preview-content {
+.theme-preview-hisui .preview-content {
   padding: 8px;
 }
 
-.theme-preview-caster .preview-line {
+.theme-preview-hisui .preview-line {
   height: 3px;
   background: rgba(255, 255, 255, 0.06);
   margin-bottom: 3px;
   border-radius: 1px;
 }
 
-.theme-preview-caster .preview-accent {
+.theme-preview-hisui .preview-accent {
   height: 3px;
   width: 50%;
   background: #c084fc;
@@ -3165,7 +3165,7 @@ input[type="checkbox"] {
     position: static;
   }
 
-  .layout-caster .app-shell {
+  .layout-hisui .app-shell {
     grid-template-rows: 44px 1fr 64px;
   }
 
@@ -3244,7 +3244,7 @@ input[type="checkbox"] {
     align-items: stretch;
   }
 
-  .render-success-actions .caster-btn {
+  .render-success-actions .hisui-btn {
     width: 100%;
   }
 }

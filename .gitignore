@@ -5,6 +5,7 @@ coverage
 *.log
 .DS_Store
 apps/desktop/dist
+apps/desktop/.cache
 apps/desktop/out
 apps/desktop/.vite
 services/audio/.venv
