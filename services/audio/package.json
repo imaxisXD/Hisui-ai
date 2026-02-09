@@ -1,0 +1,10 @@
+{
+  "name": "@local-podcast/audio-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Python sidecar wrapper metadata for workspace consistency",
+  "scripts": {
+    "start": "python3 server.py --port 43111",
+    "seed:offline-cache": "python3 scripts/seed_offline_cache.py"
+  }
+}

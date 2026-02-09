@@ -1,0 +1,26 @@
+{
+  "name": "local-podcast",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first podcast maker desktop app",
+  "workspaces": [
+    "apps/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @caster/desktop",
+    "build": "npm run build -w @caster/desktop",
+    "package": "npm run package -w @caster/desktop",
+    "typecheck": "npm run typecheck -w @caster/desktop",
+    "test": "npm run test -w @caster/desktop",
+    "seed:offline-cache": "npm run seed:offline-cache -w @local-podcast/audio-sidecar",
+    "seed:kokoro-node": "npm run seed:model -w @local-podcast/kokoro-node --"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@img/sharp-darwin-arm64": "^0.34.5",
+    "sharp": "^0.34.5"
+  }
+}

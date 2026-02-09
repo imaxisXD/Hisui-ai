@@ -1,0 +1,17 @@
+node_modules
+dist
+build
+coverage
+*.log
+.DS_Store
+apps/desktop/dist
+apps/desktop/out
+apps/desktop/.vite
+services/audio/.venv
+services/audio/__pycache__
+resources/models/*
+!resources/models/README.md
+resources/fonts/*
+!resources/fonts/README.md
+resources/bin/*
+!resources/bin/README.md

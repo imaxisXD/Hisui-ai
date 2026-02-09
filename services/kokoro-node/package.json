@@ -1,0 +1,14 @@
+{
+  "name": "@local-podcast/kokoro-node",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Optional Node.js Kokoro backend for sidecar fallback",
+  "scripts": {
+    "synthesize": "node cli.mjs",
+    "seed:model": "node seed-model.mjs"
+  },
+  "dependencies": {
+    "kokoro-js": "^1.2.0"
+  }
+}

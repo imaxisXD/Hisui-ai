@@ -1,0 +1,29 @@
+appId: com.caster.desktop
+productName: Caster
+directories:
+  output: out
+  buildResources: ../../resources
+files:
+  - dist/**
+  - package.json
+extraResources:
+  - from: ../../resources/bin
+    to: bin
+  - from: ../../resources/models
+    to: models
+  - from: ../../resources/fonts
+    to: fonts
+  - from: ../../services/audio
+    to: services/audio
+  - from: ../../services/kokoro-node
+    to: services/kokoro-node
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  category: public.app-category.productivity
+asar: true
+afterSign: scripts/notarize.cjs

@@ -1,0 +1,194 @@
+import { constants } from "node:fs";
+import { access, mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { spawn } from "node:child_process";
+import type { Project, RenderJob, RenderMetrics, RenderOptions } from "../../shared/types.js";
+import { getProject, upsertRenderJob } from "../db/projectRepository.js";
+import { createId } from "../utils/id.js";
+import { nowIso } from "../utils/time.js";
+import { sanitizeFileName } from "../utils/file.js";
+import type { AudioRuntimeClient, TtsSegmentRequest } from "../sidecars/audioClient.js";
+import { LlmPrepService } from "../sidecars/llmPrepService.js";
+import { getFfmpegPath } from "../utils/paths.js";
+
+interface RenderServiceOptions {
+  audioClient: AudioRuntimeClient;
+  llmPrepService: LlmPrepService;
+}
+
+export class RenderService {
+  private readonly audioClient: AudioRuntimeClient;
+  private readonly llmPrepService: LlmPrepService;
+
+  constructor(options: RenderServiceOptions) {
+    this.audioClient = options.audioClient;
+    this.llmPrepService = options.llmPrepService;
+  }
+
+  async renderProject(
+    projectId: string,
+    options: RenderOptions,
+    signal?: AbortSignal,
+    existingJobId?: string
+  ): Promise<RenderJob> {
+    const job: RenderJob = {
+      id: existingJobId ?? createId(),
+      projectId,
+      state: "queued"
+    };
+    upsertRenderJob(job);
+
+    const startedAt = nowIso();
+    job.state = "running";
+    job.startedAt = startedAt;
+    upsertRenderJob(job);
+
+    const renderStart = Date.now();
+
+    try {
+      const outputDir = options.outputDir.trim();
+      if (!outputDir) {
+        throw new Error("Output directory is required before rendering.");
+      }
+
+      const project = getProject(projectId);
+      if (!project) {
+        throw new Error(`Project not found: ${projectId}`);
+      }
+
+      const workingDir = join(outputDir, `.render-${job.id}`);
+      await mkdir(workingDir, { recursive: true });
+
+      const segments = await this.prepareSegments(project, options, signal);
+      const ttsPayload: TtsSegmentRequest[] = segments.map((segment) => {
+        const speaker = project.speakers.find((item) => item.id === segment.speakerId);
+        if (!speaker) {
+          throw new Error(`Speaker missing for segment ${segment.id}`);
+        }
+        return {
+          id: segment.id,
+          text: segment.text,
+          voiceId: speaker.voiceId,
+          model: speaker.ttsModel,
+          speed: options.speed,
+          expressionTags: segment.expressionTags
+        };
+      });
+
+      const ttsResult = await this.audioClient.batchTts(ttsPayload, workingDir);
+
+      if (signal?.aborted) {
+        throw new Error("Render canceled");
+      }
+
+      const outputName = sanitizeFileName(options.outputFileName || project.title) || "podcast";
+      const outputMp3Path = join(outputDir, `${outputName}.mp3`);
+      await mergeToMp3(ttsResult.wavPaths, outputMp3Path);
+
+      const metrics = computeMetrics(project, renderStart);
+
+      job.state = "completed";
+      job.finishedAt = nowIso();
+      job.outputMp3Path = outputMp3Path;
+      job.metrics = metrics;
+      upsertRenderJob(job);
+      return job;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const canceled = signal?.aborted || message.toLowerCase().includes("canceled");
+      job.state = canceled ? "canceled" : "failed";
+      job.finishedAt = nowIso();
+      job.errorText = message;
+      upsertRenderJob(job);
+      return job;
+    }
+  }
+
+  private async prepareSegments(project: Project, options: RenderOptions, signal?: AbortSignal) {
+    const segments = project.chapters
+      .sort((a, b) => a.order - b.order)
+      .flatMap((chapter) => chapter.segments.sort((a, b) => a.order - b.order));
+
+    if (!options.enableLlmPrep) {
+      return segments;
+    }
+
+    const updated = [];
+    for (const segment of segments) {
+      if (signal?.aborted) {
+        throw new Error("Render canceled");
+      }
+      const llm = await this.llmPrepService.prepareText(segment.text);
+      updated.push({ ...segment, text: llm.preparedText });
+    }
+    return updated;
+  }
+}
+
+function computeMetrics(project: Project, renderStartMs: number): RenderMetrics {
+  const segmentCount = project.chapters.reduce((acc, chapter) => acc + chapter.segments.length, 0);
+  const audioSeconds = project.chapters
+    .flatMap((chapter) => chapter.segments)
+    .reduce((acc, segment) => acc + segment.estDurationSec, 0);
+  const renderSeconds = (Date.now() - renderStartMs) / 1000;
+
+  return {
+    segmentCount,
+    audioSeconds: Number(audioSeconds.toFixed(2)),
+    renderSeconds: Number(renderSeconds.toFixed(2)),
+    realtimeFactor: Number((renderSeconds / Math.max(audioSeconds, 1)).toFixed(2))
+  };
+}
+
+async function mergeToMp3(wavPaths: string[], outputMp3Path: string): Promise<void> {
+  if (wavPaths.length === 0) {
+    throw new Error("No WAV files generated by TTS service");
+  }
+
+  const listPath = `${outputMp3Path}.concat.txt`;
+  const content = wavPaths.map((wavPath) => `file '${wavPath.replace(/'/g, "'\\''")}'`).join("\n");
+  await writeFile(listPath, content, "utf-8");
+
+  await runFfmpeg([
+    "-y",
+    "-f", "concat",
+    "-safe", "0",
+    "-i", listPath,
+    "-af", "aformat=sample_fmts=s16:sample_rates=44100:channel_layouts=mono",
+    "-c:a", "libmp3lame",
+    "-b:a", "192k",
+    outputMp3Path
+  ]);
+}
+
+async function runFfmpeg(args: string[]): Promise<void> {
+  const ffmpegPath = await resolveFfmpegPath();
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(ffmpegPath, args, { stdio: "pipe" });
+
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf-8");
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(`ffmpeg failed (${code}): ${stderr}`));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+async function resolveFfmpegPath(): Promise<string> {
+  const bundledPath = getFfmpegPath();
+  try {
+    await access(bundledPath, constants.X_OK);
+    return bundledPath;
+  } catch {
+    return "ffmpeg";
+  }
+}
