@@ -57,6 +57,52 @@ const renderProjectMock = vi.hoisted(() => vi.fn(async (
 vi.mock("../db/projectRepository.js", () => ({
   createProject: vi.fn((project) => project),
   getProject: vi.fn(() => null),
+  getProjectHistoryDetails: vi.fn((projectId: string) => ({
+    project: {
+      id: projectId,
+      title: "Project One",
+      sourcePath: "/tmp/project-one.txt",
+      sourceFormat: "txt",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-02T00:00:00.000Z",
+      settings: {
+        speed: 1,
+        outputSampleRate: 44100,
+        llmPrepEnabledByDefault: false
+      },
+      chapters: [],
+      speakers: []
+    },
+    recentRenderJobs: [
+      {
+        id: "render-1",
+        projectId,
+        state: "completed"
+      }
+    ]
+  })),
+  listProjects: vi.fn(() => [
+    {
+      id: "project-1",
+      title: "Project One",
+      sourcePath: "/tmp/project-one.txt",
+      sourceFormat: "txt",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-02T00:00:00.000Z",
+      chapterCount: 2,
+      segmentCount: 10
+    }
+  ]),
+  listRenderJobsForProject: vi.fn((projectId: string) => [
+    {
+      id: "render-1",
+      projectId,
+      state: "completed",
+      startedAt: "2026-01-02T00:00:00.000Z",
+      finishedAt: "2026-01-02T00:10:00.000Z",
+      outputMp3Path: "/tmp/output.mp3"
+    }
+  ]),
   getRenderJob: vi.fn((jobId: string) => {
     const job = renderJobs.get(jobId);
     return job ? { ...job } : null;
@@ -149,7 +195,8 @@ function makeDeps(overrides?: Partial<Parameters<typeof registerIpcHandlers>[0]>
     } as never,
     bootstrap: {
       getStatus: vi.fn(async () => ({})),
-      start: vi.fn(async () => ({}))
+      start: vi.fn(async () => ({})),
+      setAutoStartEnabled: vi.fn(async (enabled: boolean) => ({ autoStartEnabled: enabled }))
     } as never,
     updater: {
       getState: vi.fn(() => ({ phase: "idle", currentVersion: "0.2.0" })),
@@ -180,6 +227,23 @@ function makeDeps(overrides?: Partial<Parameters<typeof registerIpcHandlers>[0]>
       getPolicy: vi.fn(() => ({
         strictWakeOnly: true,
         idleStopMs: 300_000
+      }))
+    } as never,
+    uiPreferences: {
+      getPreferences: vi.fn(() => ({
+        theme: "hisui",
+        outputDir: "",
+        outputFileName: "podcast-output",
+        speed: 1,
+        enableLlmPrep: false
+      })),
+      updatePreferences: vi.fn((input: Record<string, unknown>) => ({
+        theme: input.theme === "folio" ? "folio" : "hisui",
+        outputDir: typeof input.outputDir === "string" ? input.outputDir : "",
+        outputFileName: typeof input.outputFileName === "string" ? input.outputFileName : "podcast-output",
+        speed: typeof input.speed === "number" ? input.speed : 1,
+        enableLlmPrep: input.enableLlmPrep === true,
+        selectedProjectHistoryId: typeof input.selectedProjectHistoryId === "string" ? input.selectedProjectHistoryId : undefined
       }))
     } as never,
     assertTrustedIpcSender: vi.fn(),
@@ -321,6 +385,87 @@ describe("registerIpcHandlers", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(powerBlockerState.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns project history list", async () => {
+    const deps = makeDeps();
+    registerIpcHandlers(deps);
+
+    const handler = ipcHandlers.get(IPC_CHANNELS.listProjects);
+    expect(handler).toBeDefined();
+    if (!handler) {
+      throw new Error("Expected app:list-projects handler to be registered");
+    }
+
+    const result = await handler(trustedEvent(), { limit: 10 }) as Array<{ id: string; title: string }>;
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0]).toEqual(expect.objectContaining({
+      id: "project-1",
+      title: "Project One"
+    }));
+  });
+
+  it("returns render history for a project", async () => {
+    const deps = makeDeps();
+    registerIpcHandlers(deps);
+
+    const handler = ipcHandlers.get(IPC_CHANNELS.listProjectRenderJobs);
+    expect(handler).toBeDefined();
+    if (!handler) {
+      throw new Error("Expected app:list-project-render-jobs handler to be registered");
+    }
+
+    const result = await handler(trustedEvent(), "project-1", 5) as Array<{ projectId: string; state: string }>;
+    expect(result[0]).toEqual(expect.objectContaining({
+      projectId: "project-1",
+      state: "completed"
+    }));
+  });
+
+  it("returns persisted UI preferences", async () => {
+    const deps = makeDeps();
+    registerIpcHandlers(deps);
+
+    const handler = ipcHandlers.get(IPC_CHANNELS.getUiPreferences);
+    expect(handler).toBeDefined();
+    if (!handler) {
+      throw new Error("Expected app:get-ui-preferences handler to be registered");
+    }
+
+    const result = await handler(trustedEvent()) as { theme: string; outputFileName: string };
+    expect(result.theme).toBe("hisui");
+    expect(result.outputFileName).toBe("podcast-output");
+  });
+
+  it("updates bootstrap auto-start preference", async () => {
+    const deps = makeDeps();
+    registerIpcHandlers(deps);
+
+    const handler = ipcHandlers.get(IPC_CHANNELS.setBootstrapAutoStartEnabled);
+    expect(handler).toBeDefined();
+    if (!handler) {
+      throw new Error("Expected app:set-bootstrap-auto-start-enabled handler to be registered");
+    }
+
+    const result = await handler(trustedEvent(), false) as { autoStartEnabled: boolean };
+    expect(result.autoStartEnabled).toBe(false);
+    expect(deps.bootstrap.setAutoStartEnabled).toHaveBeenCalledWith(false);
+  });
+
+  it("returns combined project history details payload", async () => {
+    const deps = makeDeps();
+    registerIpcHandlers(deps);
+
+    const handler = ipcHandlers.get(IPC_CHANNELS.getProjectHistoryDetails);
+    expect(handler).toBeDefined();
+    if (!handler) {
+      throw new Error("Expected app:get-project-history-details handler to be registered");
+    }
+
+    const result = await handler(trustedEvent(), "project-1", 5) as { project: { id: string }; recentRenderJobs: Array<{ id: string }> } | null;
+    expect(result).not.toBeNull();
+    expect(result?.project.id).toBe("project-1");
+    expect(result?.recentRenderJobs[0]?.id).toBe("render-1");
   });
 
   it("returns runtime resource settings", async () => {

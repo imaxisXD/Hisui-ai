@@ -25,7 +25,14 @@ const IPC_CHANNELS = {
   getDiagnosticsSnapshot: "app:get-diagnostics-snapshot",
   readAudioFile: "app:read-audio-file",
   getRuntimeResourceSettings: "app:get-runtime-resource-settings",
-  updateRuntimeResourceSettings: "app:update-runtime-resource-settings"
+  updateRuntimeResourceSettings: "app:update-runtime-resource-settings",
+  listProjects: "app:list-projects",
+  getProject: "app:get-project",
+  listProjectRenderJobs: "app:list-project-render-jobs",
+  getProjectHistoryDetails: "app:get-project-history-details",
+  setBootstrapAutoStartEnabled: "app:set-bootstrap-auto-start-enabled",
+  getUiPreferences: "app:get-ui-preferences",
+  updateUiPreferences: "app:update-ui-preferences"
 } as const;
 
 const api: DesktopApi = {
@@ -106,6 +113,33 @@ const api: DesktopApi = {
   },
   updateRuntimeResourceSettings(input: Parameters<DesktopApi["updateRuntimeResourceSettings"]>[0]) {
     return ipcRenderer.invoke(IPC_CHANNELS.updateRuntimeResourceSettings, input);
+  },
+  listProjects(query?: Parameters<DesktopApi["listProjects"]>[0]) {
+    return ipcRenderer.invoke(IPC_CHANNELS.listProjects, query);
+  },
+  getProject(projectId: Parameters<DesktopApi["getProject"]>[0]) {
+    return ipcRenderer.invoke(IPC_CHANNELS.getProject, projectId);
+  },
+  listProjectRenderJobs(
+    projectId: Parameters<DesktopApi["listProjectRenderJobs"]>[0],
+    limit?: Parameters<DesktopApi["listProjectRenderJobs"]>[1]
+  ) {
+    return ipcRenderer.invoke(IPC_CHANNELS.listProjectRenderJobs, projectId, limit);
+  },
+  getProjectHistoryDetails(
+    projectId: Parameters<DesktopApi["getProjectHistoryDetails"]>[0],
+    limit?: Parameters<DesktopApi["getProjectHistoryDetails"]>[1]
+  ) {
+    return ipcRenderer.invoke(IPC_CHANNELS.getProjectHistoryDetails, projectId, limit);
+  },
+  setBootstrapAutoStartEnabled(enabled: Parameters<DesktopApi["setBootstrapAutoStartEnabled"]>[0]) {
+    return ipcRenderer.invoke(IPC_CHANNELS.setBootstrapAutoStartEnabled, enabled);
+  },
+  getUiPreferences() {
+    return ipcRenderer.invoke(IPC_CHANNELS.getUiPreferences);
+  },
+  updateUiPreferences(input: Parameters<DesktopApi["updateUiPreferences"]>[0]) {
+    return ipcRenderer.invoke(IPC_CHANNELS.updateUiPreferences, input);
   }
 };
 

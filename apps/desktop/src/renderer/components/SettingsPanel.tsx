@@ -1,12 +1,16 @@
 import { useEffect } from "react";
 import type {
+  BootstrapStatus,
   DiagnosticsSnapshot,
+  ProjectHistoryItem,
   RuntimeResourceSettings,
   UpdateRuntimeResourceSettingsInput,
-  UpdateState
+  UpdateState,
+  KokoroBackendMode
 } from "../../shared/types";
 import { useTheme, type ThemeName } from "./ThemeContext";
 import { HisuiButton } from "./HisuiButton";
+import { RuntimeSetupPanel } from "./RuntimeSetupPanel";
 
 interface SettingsPanelProps {
   onClose(): void;
@@ -29,6 +33,23 @@ interface SettingsPanelProps {
   onInstallDownloadedUpdate(): Promise<void>;
   onRefreshDiagnostics(): Promise<void>;
   onRevealCrashDumps(): Promise<void>;
+  projectHistory?: ProjectHistoryItem[];
+  projectHistoryLoading?: boolean;
+  projectHistoryError?: string | null;
+  onOpenProjectFromHistory?: (projectId: string) => Promise<void>;
+  bootstrapStatus?: BootstrapStatus | null;
+  bootstrapAutoStartEnabled?: boolean;
+  bootstrapDefaultInstallPath?: string;
+  bootstrapInstallPath?: string;
+  bootstrapBackend?: KokoroBackendMode;
+  bootstrapSelectedPackIds?: string[];
+  onBootstrapInstallPathChange?: (value: string) => void;
+  onBootstrapBrowseInstallPath?: () => Promise<string | null>;
+  onBootstrapUseDefaultInstallPath?: () => void;
+  onBootstrapBackendChange?: (value: KokoroBackendMode) => void;
+  onBootstrapTogglePack?: (packId: string) => void;
+  onBootstrapAutoStartEnabledChange?: (value: boolean) => Promise<void>;
+  onBootstrapStart?: () => Promise<void>;
 }
 
 function updatePhaseLabel(phase: UpdateState["phase"]): string {
@@ -74,7 +95,24 @@ export function SettingsPanel({
   onCheckForUpdates,
   onInstallDownloadedUpdate,
   onRefreshDiagnostics,
-  onRevealCrashDumps
+  onRevealCrashDumps,
+  projectHistory = [],
+  projectHistoryLoading = false,
+  projectHistoryError = null,
+  onOpenProjectFromHistory,
+  bootstrapStatus = null,
+  bootstrapAutoStartEnabled = true,
+  bootstrapDefaultInstallPath = "",
+  bootstrapInstallPath = "",
+  bootstrapBackend = "auto",
+  bootstrapSelectedPackIds = [],
+  onBootstrapInstallPathChange,
+  onBootstrapBrowseInstallPath,
+  onBootstrapUseDefaultInstallPath,
+  onBootstrapBackendChange,
+  onBootstrapTogglePack,
+  onBootstrapAutoStartEnabledChange,
+  onBootstrapStart
 }: SettingsPanelProps) {
   const { theme, setTheme } = useTheme();
   const runtimeSettingsLoading = runtimeResourceSettings === null;
@@ -92,10 +130,18 @@ export function SettingsPanel({
 
   const canInstallUpdate = updateState?.phase === "downloaded";
   const phaseText = updateState ? updatePhaseLabel(updateState.phase) : "Unavailable";
+  const canRenderBootstrapSettings = Boolean(
+    onBootstrapInstallPathChange
+    && onBootstrapBrowseInstallPath
+    && onBootstrapUseDefaultInstallPath
+    && onBootstrapBackendChange
+    && onBootstrapTogglePack
+    && onBootstrapStart
+  );
 
   return (
     <div className="settings-overlay" onClick={onClose}>
-      <div className="settings-modal" role="dialog" aria-modal="true" aria-label="Settings" onClick={(e) => e.stopPropagation()}>
+      <div className="settings-modal settings-modal--wide" role="dialog" aria-modal="true" aria-label="Settings" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
           <h2>Settings</h2>
           <HisuiButton variant="ghost" size="sm" onClick={onClose}>Close</HisuiButton>
@@ -119,6 +165,69 @@ export function SettingsPanel({
               onSelect={setTheme}
             />
           </div>
+        </div>
+
+        <div className="settings-section">
+          <h3>Projects + Runtime</h3>
+          <div className="settings-project-list">
+            {projectHistoryLoading ? <p className="settings-subtle">Loading recent projects...</p> : null}
+            {projectHistoryError ? <p className="warning-text" role="alert">{projectHistoryError}</p> : null}
+            {projectHistory.length === 0 && !projectHistoryLoading ? (
+              <p className="settings-subtle">No projects yet.</p>
+            ) : (
+              projectHistory.slice(0, 6).map((project) => (
+                <div key={project.id} className="settings-project-item">
+                  <div>
+                    <strong>{project.title}</strong>
+                    <p className="settings-subtle">{project.chapterCount} chapters - updated {new Date(project.updatedAt).toLocaleDateString()}</p>
+                  </div>
+                  <HisuiButton
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void onOpenProjectFromHistory?.(project.id)}
+                    disabled={!onOpenProjectFromHistory}
+                  >
+                    Open
+                  </HisuiButton>
+                </div>
+              ))
+            )}
+          </div>
+
+          <label className="settings-runtime-row settings-runtime-row--toggle">
+            <span className="settings-runtime-copy">
+              <span className="settings-runtime-label">Auto-start runtime on app launch</span>
+              <span className="settings-runtime-desc">Skip setup screen for returning users and start services in background.</span>
+            </span>
+            <span className="render-check-toggle">
+              <input
+                type="checkbox"
+                checked={bootstrapAutoStartEnabled}
+                onChange={(event) => {
+                  void onBootstrapAutoStartEnabledChange?.(event.target.checked);
+                }}
+                disabled={!onBootstrapAutoStartEnabledChange || bootstrapStatus?.phase === "running"}
+              />
+              <span className="render-check-slider" aria-hidden="true" />
+            </span>
+          </label>
+
+          {canRenderBootstrapSettings ? (
+            <RuntimeSetupPanel
+              mode="settings"
+              status={bootstrapStatus}
+              defaultInstallPath={bootstrapDefaultInstallPath}
+              installPath={bootstrapInstallPath}
+              kokoroBackend={bootstrapBackend}
+              selectedPackIds={bootstrapSelectedPackIds}
+              onInstallPathChange={onBootstrapInstallPathChange!}
+              onBrowseInstallPath={() => void onBootstrapBrowseInstallPath!()}
+              onUseDefaultInstallPath={onBootstrapUseDefaultInstallPath!}
+              onBackendChange={onBootstrapBackendChange!}
+              onTogglePack={onBootstrapTogglePack!}
+              onStart={() => void onBootstrapStart!()}
+            />
+          ) : null}
         </div>
 
         <div className="settings-section">

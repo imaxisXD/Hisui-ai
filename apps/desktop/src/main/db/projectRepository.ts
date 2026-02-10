@@ -2,7 +2,11 @@ import type Database from "better-sqlite3";
 import type {
   Chapter,
   Project,
+  ProjectHistoryDetails,
+  ProjectHistoryItem,
+  ProjectHistoryQuery,
   RenderJob,
+  RenderState,
   Segment,
   SpeakerProfile,
   UpdateSpeakersInput,
@@ -57,6 +61,20 @@ interface RenderJobRow {
   error_text: string | null;
 }
 
+interface ProjectHistoryRow {
+  id: string;
+  title: string;
+  source_path: string;
+  source_format: Project["sourceFormat"];
+  created_at: string;
+  updated_at: string;
+  chapter_count: number;
+  segment_count: number;
+  last_render_at: string | null;
+  last_render_state: RenderState | null;
+  last_output_mp3_path: string | null;
+}
+
 function db(): Database.Database {
   return getDb();
 }
@@ -75,8 +93,21 @@ function mapProject(row: ProjectRow, chapters: Chapter[], speakers: SpeakerProfi
   };
 }
 
-function listSpeakers(projectId: string): SpeakerProfile[] {
-  const rows = db()
+function mapRenderJobRow(row: RenderJobRow): RenderJob {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    state: row.state,
+    startedAt: row.started_at ?? undefined,
+    finishedAt: row.finished_at ?? undefined,
+    outputMp3Path: row.output_mp3_path ?? undefined,
+    metrics: row.metrics_json ? JSON.parse(row.metrics_json) : undefined,
+    errorText: row.error_text ?? undefined
+  };
+}
+
+function listSpeakersForProject(database: Database.Database, projectId: string): SpeakerProfile[] {
+  const rows = database
     .prepare("SELECT * FROM speakers WHERE project_id = ? ORDER BY rowid")
     .all(projectId) as SpeakerRow[];
   return rows.map((row) => ({
@@ -88,17 +119,28 @@ function listSpeakers(projectId: string): SpeakerProfile[] {
   }));
 }
 
-function listChapters(projectId: string): Chapter[] {
-  const chapterRows = db()
+function listChaptersForProject(database: Database.Database, projectId: string): Chapter[] {
+  const chapterRows = database
     .prepare("SELECT * FROM chapters WHERE project_id = ? ORDER BY chapter_order")
     .all(projectId) as ChapterRow[];
 
-  const segmentQuery = db()
-    .prepare("SELECT * FROM segments WHERE chapter_id = ? ORDER BY segment_order");
+  if (chapterRows.length === 0) {
+    return [];
+  }
 
-  return chapterRows.map((chapterRow) => {
-    const segments = segmentQuery.all(chapterRow.id) as SegmentRow[];
-    const mappedSegments: Segment[] = segments.map((segmentRow) => ({
+  const segmentRows = database
+    .prepare(`
+      SELECT segments.*
+      FROM segments
+      INNER JOIN chapters ON chapters.id = segments.chapter_id
+      WHERE chapters.project_id = ?
+      ORDER BY chapters.chapter_order, segments.segment_order
+    `)
+    .all(projectId) as SegmentRow[];
+
+  const segmentsByChapter = new Map<string, Segment[]>();
+  for (const segmentRow of segmentRows) {
+    const mapped: Segment = {
       id: segmentRow.id,
       chapterId: segmentRow.chapter_id,
       order: segmentRow.segment_order,
@@ -106,15 +148,120 @@ function listChapters(projectId: string): Chapter[] {
       text: segmentRow.text,
       expressionTags: JSON.parse(segmentRow.expression_tags_json),
       estDurationSec: segmentRow.est_duration_sec
-    }));
-
-    return {
-      id: chapterRow.id,
-      title: chapterRow.title,
-      order: chapterRow.chapter_order,
-      segments: mappedSegments
     };
+    const existing = segmentsByChapter.get(segmentRow.chapter_id);
+    if (existing) {
+      existing.push(mapped);
+    } else {
+      segmentsByChapter.set(segmentRow.chapter_id, [mapped]);
+    }
+  }
+
+  return chapterRows.map((chapterRow) => ({
+    id: chapterRow.id,
+    title: chapterRow.title,
+    order: chapterRow.chapter_order,
+    segments: segmentsByChapter.get(chapterRow.id) ?? []
+  }));
+}
+
+function upsertProjectStats(database: Database.Database, projectId: string, updatedAt: string): void {
+  database.prepare(`
+    INSERT INTO project_stats (
+      project_id,
+      chapter_count,
+      segment_count,
+      last_render_at,
+      last_render_state,
+      last_output_mp3_path,
+      updated_at
+    )
+    VALUES (
+      @projectId,
+      (
+        SELECT COUNT(*)
+        FROM chapters
+        WHERE chapters.project_id = @projectId
+      ),
+      (
+        SELECT COUNT(*)
+        FROM segments
+        INNER JOIN chapters ON chapters.id = segments.chapter_id
+        WHERE chapters.project_id = @projectId
+      ),
+      (
+        SELECT MAX(COALESCE(render_jobs.finished_at, render_jobs.started_at))
+        FROM render_jobs
+        WHERE render_jobs.project_id = @projectId
+      ),
+      (
+        SELECT render_jobs.state
+        FROM render_jobs
+        WHERE render_jobs.project_id = @projectId
+        ORDER BY COALESCE(render_jobs.finished_at, render_jobs.started_at) DESC, render_jobs.rowid DESC
+        LIMIT 1
+      ),
+      (
+        SELECT render_jobs.output_mp3_path
+        FROM render_jobs
+        WHERE render_jobs.project_id = @projectId AND render_jobs.output_mp3_path IS NOT NULL
+        ORDER BY COALESCE(render_jobs.finished_at, render_jobs.started_at) DESC, render_jobs.rowid DESC
+        LIMIT 1
+      ),
+      @updatedAt
+    )
+    ON CONFLICT(project_id) DO UPDATE SET
+      chapter_count = excluded.chapter_count,
+      segment_count = excluded.segment_count,
+      last_render_at = excluded.last_render_at,
+      last_render_state = excluded.last_render_state,
+      last_output_mp3_path = excluded.last_output_mp3_path,
+      updated_at = excluded.updated_at
+  `).run({
+    projectId,
+    updatedAt
   });
+}
+
+function getProjectFromDatabase(database: Database.Database, projectId: string): Project | null {
+  const row = database.prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as ProjectRow | undefined;
+  if (!row) {
+    return null;
+  }
+  const chapters = listChaptersForProject(database, projectId);
+  const speakers = listSpeakersForProject(database, projectId);
+  return mapProject(row, chapters, speakers);
+}
+
+function normalizeProjectHistoryLimit(input?: number): number {
+  if (typeof input !== "number" || !Number.isFinite(input)) {
+    return 50;
+  }
+  return Math.max(1, Math.min(200, Math.round(input)));
+}
+
+function normalizeRenderHistoryLimit(input?: number): number {
+  if (typeof input !== "number" || !Number.isFinite(input)) {
+    return 20;
+  }
+  return Math.max(1, Math.min(100, Math.round(input)));
+}
+
+function listRenderJobsForProjectFromDatabase(
+  database: Database.Database,
+  projectId: string,
+  limitInput?: number
+): RenderJob[] {
+  const limit = normalizeRenderHistoryLimit(limitInput);
+  const rows = database.prepare(`
+    SELECT *
+    FROM render_jobs
+    WHERE project_id = ?
+    ORDER BY COALESCE(finished_at, started_at) DESC, rowid DESC
+    LIMIT ?
+  `).all(projectId, limit) as RenderJobRow[];
+
+  return rows.map(mapRenderJobRow);
 }
 
 export function createProject(project: Project): Project {
@@ -171,6 +318,8 @@ export function createProject(project: Project): Project {
         promptAudioPath: speaker.promptAudioPath ?? null
       });
     }
+
+    upsertProjectStats(database, project.id, project.updatedAt);
   });
 
   tx();
@@ -178,13 +327,7 @@ export function createProject(project: Project): Project {
 }
 
 export function getProject(projectId: string): Project | null {
-  const row = db().prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as ProjectRow | undefined;
-  if (!row) {
-    return null;
-  }
-  const chapters = listChapters(projectId);
-  const speakers = listSpeakers(projectId);
-  return mapProject(row, chapters, speakers);
+  return getProjectFromDatabase(db(), projectId);
 }
 
 export function updateSegments(input: UpdateSegmentsInput): Project {
@@ -206,9 +349,14 @@ export function updateSegments(input: UpdateSegmentsInput): Project {
         expressionTagsJson: JSON.stringify(update.expressionTags)
       });
     }
+    const updatedAt = new Date().toISOString();
     database.prepare("UPDATE projects SET updated_at = @updatedAt WHERE id = @id").run({
       id: input.projectId,
-      updatedAt: new Date().toISOString()
+      updatedAt
+    });
+    database.prepare("UPDATE project_stats SET updated_at = @updatedAt WHERE project_id = @id").run({
+      id: input.projectId,
+      updatedAt
     });
   });
 
@@ -264,9 +412,14 @@ export function updateSpeakers(input: UpdateSpeakersInput): Project {
       }
     }
 
+    const updatedAt = new Date().toISOString();
     database.prepare("UPDATE projects SET updated_at = @updatedAt WHERE id = @id").run({
       id: input.projectId,
-      updatedAt: new Date().toISOString()
+      updatedAt
+    });
+    database.prepare("UPDATE project_stats SET updated_at = @updatedAt WHERE project_id = @id").run({
+      id: input.projectId,
+      updatedAt
     });
   });
 
@@ -280,26 +433,32 @@ export function updateSpeakers(input: UpdateSpeakersInput): Project {
 }
 
 export function upsertRenderJob(job: RenderJob): void {
-  db().prepare(`
-    INSERT INTO render_jobs (id, project_id, state, started_at, finished_at, output_mp3_path, metrics_json, error_text)
-    VALUES (@id, @projectId, @state, @startedAt, @finishedAt, @outputMp3Path, @metricsJson, @errorText)
-    ON CONFLICT(id) DO UPDATE SET
-      state = excluded.state,
-      started_at = excluded.started_at,
-      finished_at = excluded.finished_at,
-      output_mp3_path = excluded.output_mp3_path,
-      metrics_json = excluded.metrics_json,
-      error_text = excluded.error_text
-  `).run({
-    id: job.id,
-    projectId: job.projectId,
-    state: job.state,
-    startedAt: job.startedAt ?? null,
-    finishedAt: job.finishedAt ?? null,
-    outputMp3Path: job.outputMp3Path ?? null,
-    metricsJson: job.metrics ? JSON.stringify(job.metrics) : null,
-    errorText: job.errorText ?? null
+  const database = db();
+  const tx = database.transaction(() => {
+    database.prepare(`
+      INSERT INTO render_jobs (id, project_id, state, started_at, finished_at, output_mp3_path, metrics_json, error_text)
+      VALUES (@id, @projectId, @state, @startedAt, @finishedAt, @outputMp3Path, @metricsJson, @errorText)
+      ON CONFLICT(id) DO UPDATE SET
+        state = excluded.state,
+        started_at = excluded.started_at,
+        finished_at = excluded.finished_at,
+        output_mp3_path = excluded.output_mp3_path,
+        metrics_json = excluded.metrics_json,
+        error_text = excluded.error_text
+    `).run({
+      id: job.id,
+      projectId: job.projectId,
+      state: job.state,
+      startedAt: job.startedAt ?? null,
+      finishedAt: job.finishedAt ?? null,
+      outputMp3Path: job.outputMp3Path ?? null,
+      metricsJson: job.metrics ? JSON.stringify(job.metrics) : null,
+      errorText: job.errorText ?? null
+    });
+    upsertProjectStats(database, job.projectId, new Date().toISOString());
   });
+
+  tx();
 }
 
 export function getRenderJob(jobId: string): RenderJob | null {
@@ -307,14 +466,62 @@ export function getRenderJob(jobId: string): RenderJob | null {
   if (!row) {
     return null;
   }
-  return {
+  return mapRenderJobRow(row);
+}
+
+export function listProjects(query: ProjectHistoryQuery = {}): ProjectHistoryItem[] {
+  const limit = normalizeProjectHistoryLimit(query.limit);
+  const rows = db().prepare(`
+    SELECT
+      projects.id AS id,
+      projects.title AS title,
+      projects.source_path AS source_path,
+      projects.source_format AS source_format,
+      projects.created_at AS created_at,
+      projects.updated_at AS updated_at,
+      COALESCE(project_stats.chapter_count, 0) AS chapter_count,
+      COALESCE(project_stats.segment_count, 0) AS segment_count,
+      project_stats.last_render_at AS last_render_at,
+      project_stats.last_render_state AS last_render_state,
+      project_stats.last_output_mp3_path AS last_output_mp3_path
+    FROM projects
+    LEFT JOIN project_stats ON project_stats.project_id = projects.id
+    ORDER BY projects.updated_at DESC, projects.created_at DESC
+    LIMIT ?
+  `).all(limit) as ProjectHistoryRow[];
+
+  return rows.map((row) => ({
     id: row.id,
-    projectId: row.project_id,
-    state: row.state,
-    startedAt: row.started_at ?? undefined,
-    finishedAt: row.finished_at ?? undefined,
-    outputMp3Path: row.output_mp3_path ?? undefined,
-    metrics: row.metrics_json ? JSON.parse(row.metrics_json) : undefined,
-    errorText: row.error_text ?? undefined
-  };
+    title: row.title,
+    sourcePath: row.source_path,
+    sourceFormat: row.source_format,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    chapterCount: row.chapter_count,
+    segmentCount: row.segment_count,
+    lastRenderAt: row.last_render_at ?? undefined,
+    lastRenderState: row.last_render_state ?? undefined,
+    lastOutputMp3Path: row.last_output_mp3_path ?? undefined
+  }));
+}
+
+export function listRenderJobsForProject(projectId: string, limitInput?: number): RenderJob[] {
+  return listRenderJobsForProjectFromDatabase(db(), projectId, limitInput);
+}
+
+export function getProjectHistoryDetails(projectId: string, limitInput?: number): ProjectHistoryDetails | null {
+  const database = db();
+  const loadDetails = database.transaction((id: string, limit: number) => {
+    const project = getProjectFromDatabase(database, id);
+    if (!project) {
+      return null;
+    }
+    const recentRenderJobs = listRenderJobsForProjectFromDatabase(database, id, limit);
+    return {
+      project,
+      recentRenderJobs
+    } satisfies ProjectHistoryDetails;
+  });
+
+  return loadDetails(projectId, normalizeRenderHistoryLimit(limitInput));
 }

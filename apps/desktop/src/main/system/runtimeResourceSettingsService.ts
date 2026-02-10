@@ -1,13 +1,15 @@
 import { app } from "electron";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type {
   RuntimeResourceSettings,
   UpdateRuntimeResourceSettingsInput
 } from "../../shared/types.js";
 import { logDebug, logInfo, logWarn } from "../utils/logging.js";
+import { AppSettingsStore } from "./appSettingsStore.js";
 
-const SETTINGS_FILE_NAME = "runtime-resource-settings.json";
+const SETTINGS_KEY = "runtime.resources.v1";
+const LEGACY_SETTINGS_FILE_NAME = "runtime-resource-settings.json";
 const DEFAULT_STRICT_WAKE_ONLY = true;
 const DEFAULT_IDLE_STOP_MINUTES = 5;
 const MIN_IDLE_STOP_MINUTES = 1;
@@ -26,26 +28,55 @@ export interface RuntimeResourcePolicy {
   idleStopMs: number;
 }
 
+interface RuntimeResourceSettingsServiceOptions {
+  settingsStore?: AppSettingsStore;
+  legacyFilePath?: string;
+  getUserDataPath?: () => string;
+}
+
 export class RuntimeResourceSettingsService {
-  private filePath = "";
   private loaded = false;
   private readonly fallbackIdleStopMinutes = resolveFallbackIdleStopMinutesFromEnv();
+  private readonly settingsStore: AppSettingsStore;
+  private readonly legacyFilePathOverride?: string;
+  private readonly getUserDataPath: () => string;
   private settings: RuntimeResourceSettings = {
     strictWakeOnly: DEFAULT_STRICT_WAKE_ONLY,
     idleStopMinutes: this.fallbackIdleStopMinutes,
     promptPending: true
   };
 
+  constructor(options: RuntimeResourceSettingsServiceOptions = {}) {
+    this.settingsStore = options.settingsStore ?? new AppSettingsStore();
+    this.legacyFilePathOverride = options.legacyFilePath;
+    this.getUserDataPath = options.getUserDataPath ?? (() => app.getPath("userData"));
+  }
+
   async initialize(): Promise<RuntimeResourceSettings> {
     if (this.loaded) {
       return this.getSettings();
     }
 
-    const userDataPath = app.getPath("userData");
-    this.filePath = join(userDataPath, SETTINGS_FILE_NAME);
+    const persisted = this.settingsStore.get<PersistedRuntimeResourceSettings>(SETTINGS_KEY);
+    if (persisted) {
+      const hasExplicitChoice = persisted.explicitChoiceSaved === true;
+      this.settings = {
+        strictWakeOnly: normalizeStrictWakeOnly(persisted.strictWakeOnly),
+        idleStopMinutes: normalizeIdleStopMinutes(persisted.idleStopMinutes, this.fallbackIdleStopMinutes),
+        promptPending: !hasExplicitChoice
+      };
+      this.loaded = true;
+      logInfo("runtime-settings", "loaded runtime resource settings from sqlite", {
+        strictWakeOnly: this.settings.strictWakeOnly,
+        idleStopMinutes: this.settings.idleStopMinutes,
+        promptPending: this.settings.promptPending
+      });
+      return this.getSettings();
+    }
 
+    const legacyFilePath = this.resolveLegacyFilePath();
     try {
-      const raw = await readFile(this.filePath, "utf-8");
+      const raw = await readFile(legacyFilePath, "utf-8");
       const parsed = JSON.parse(raw) as PersistedRuntimeResourceSettings;
       const hasExplicitChoice = parsed.explicitChoiceSaved === true;
       this.settings = {
@@ -53,8 +84,13 @@ export class RuntimeResourceSettingsService {
         idleStopMinutes: normalizeIdleStopMinutes(parsed.idleStopMinutes, this.fallbackIdleStopMinutes),
         promptPending: !hasExplicitChoice
       };
-      logInfo("runtime-settings", "loaded persisted runtime resource settings", {
-        filePath: this.filePath,
+      this.settingsStore.set<PersistedRuntimeResourceSettings>(SETTINGS_KEY, {
+        strictWakeOnly: this.settings.strictWakeOnly,
+        idleStopMinutes: this.settings.idleStopMinutes,
+        explicitChoiceSaved: hasExplicitChoice
+      });
+      logInfo("runtime-settings", "migrated legacy runtime resource settings into sqlite", {
+        legacyFilePath,
         strictWakeOnly: this.settings.strictWakeOnly,
         idleStopMinutes: this.settings.idleStopMinutes,
         promptPending: this.settings.promptPending
@@ -67,7 +103,7 @@ export class RuntimeResourceSettingsService {
         promptPending: true
       };
       logWarn("runtime-settings", "using default runtime resource settings", {
-        filePath: this.filePath,
+        legacyFilePath,
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -98,22 +134,25 @@ export class RuntimeResourceSettingsService {
       promptPending: false
     };
 
-    const payload: PersistedRuntimeResourceSettings = {
+    this.settingsStore.set<PersistedRuntimeResourceSettings>(SETTINGS_KEY, {
       strictWakeOnly: normalized.strictWakeOnly,
       idleStopMinutes: normalized.idleStopMinutes,
       explicitChoiceSaved: true
-    };
-
-    await mkdir(dirname(this.filePath), { recursive: true });
-    await writeFile(this.filePath, JSON.stringify(payload, null, 2), "utf-8");
+    });
 
     this.settings = normalized;
-    logDebug("runtime-settings", "saved runtime resource settings", {
-      filePath: this.filePath,
+    logDebug("runtime-settings", "saved runtime resource settings into sqlite", {
       strictWakeOnly: normalized.strictWakeOnly,
       idleStopMinutes: normalized.idleStopMinutes
     });
     return this.getSettings();
+  }
+
+  private resolveLegacyFilePath(): string {
+    if (this.legacyFilePathOverride) {
+      return this.legacyFilePathOverride;
+    }
+    return join(this.getUserDataPath(), LEGACY_SETTINGS_FILE_NAME);
   }
 }
 

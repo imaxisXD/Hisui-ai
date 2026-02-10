@@ -23,6 +23,21 @@ vi.mock("../utils/paths.js", () => ({
 
 const execFileAsync = promisify(execFile);
 
+function createInMemorySettingsStore() {
+  const store = new Map<string, unknown>();
+  return {
+    get<T>(key: string): T | null {
+      return (store.get(key) as T | undefined) ?? null;
+    },
+    set<T>(key: string, value: T) {
+      store.set(key, value);
+    },
+    has(key: string): boolean {
+      return store.has(key);
+    }
+  };
+}
+
 describe("BootstrapManager", () => {
   let userDataPath = "";
   let modelsDir = "";
@@ -51,9 +66,12 @@ describe("BootstrapManager", () => {
       start: vi.fn(async () => undefined),
       setDefaultRuntimeConfig: vi.fn()
     };
+    const settingsStore = createInMemorySettingsStore();
 
     const { BootstrapManager } = await import("./bootstrapManager.js");
-    const manager = new BootstrapManager(sidecar as never);
+    const manager = new BootstrapManager(sidecar as never, {
+      settingsStore: settingsStore as never
+    });
 
     const initial = await manager.getStatus();
     expect(initial.phase).toBe("awaiting-input");
@@ -87,7 +105,9 @@ describe("BootstrapManager", () => {
     const secondManager = new BootstrapManager({
       start: vi.fn(async () => undefined),
       setDefaultRuntimeConfig: vi.fn()
-    } as never);
+    } as never, {
+      settingsStore: settingsStore as never
+    });
     const resumed = await secondManager.getStatus();
     expect(resumed.phase).toBe("awaiting-input");
     expect(resumed.firstRun).toBe(false);
@@ -125,8 +145,11 @@ describe("BootstrapManager", () => {
         start: vi.fn(async () => undefined),
         setDefaultRuntimeConfig: vi.fn()
       };
+      const settingsStore = createInMemorySettingsStore();
       const { BootstrapManager } = await import("./bootstrapManager.js");
-      const manager = new BootstrapManager(sidecar as never);
+      const manager = new BootstrapManager(sidecar as never, {
+        settingsStore: settingsStore as never
+      });
       const runtimePath = join(userDataPath, "runtime-remote");
 
       await manager.start({
@@ -153,9 +176,12 @@ describe("BootstrapManager", () => {
       start: vi.fn(async () => undefined),
       setDefaultRuntimeConfig: vi.fn()
     };
+    const settingsStore = createInMemorySettingsStore();
 
     const { BootstrapManager } = await import("./bootstrapManager.js");
-    const manager = new BootstrapManager(sidecar as never);
+    const manager = new BootstrapManager(sidecar as never, {
+      settingsStore: settingsStore as never
+    });
     const runtimePath = join(userDataPath, "runtime-expressive");
 
     await manager.start({

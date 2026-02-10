@@ -8,6 +8,7 @@ import { ScriptStudioPanel } from "../components/ScriptStudioPanel";
 import { VoiceCastingPanel } from "../components/VoiceCastingPanel";
 import { RenderDeskPanel } from "../components/RenderDeskPanel";
 import { BootstrapSetupScreen } from "../components/BootstrapSetupScreen";
+import { StartupSplash } from "../components/StartupSplash";
 import { useAppController } from "./useAppController";
 import { resolveViewFromPathname, VIEW_PATHS, type View } from "./viewRouting";
 
@@ -75,23 +76,27 @@ export function App() {
   if (!app.bootstrap.isReady) {
     return (
       <>
-        <BootstrapSetupScreen
-          status={app.bootstrap.status}
-          defaultInstallPath={app.bootstrap.status?.defaultInstallPath ?? ""}
-          installPath={app.bootstrap.installPath}
-          kokoroBackend={app.bootstrap.backend}
-          selectedPackIds={app.bootstrap.selectedPackIds}
-          onInstallPathChange={app.bootstrap.setInstallPath}
-          onBrowseInstallPath={() => {
-            void app.bootstrap.browseInstallPath();
-          }}
-          onUseDefaultInstallPath={app.bootstrap.useDefaultInstallPath}
-          onBackendChange={app.bootstrap.setBackend}
-          onTogglePack={app.bootstrap.togglePack}
-          onStart={() => {
-            void app.bootstrap.start();
-          }}
-        />
+        {app.bootstrap.showStartupSplash ? (
+          <StartupSplash status={app.bootstrap.status} />
+        ) : (
+          <BootstrapSetupScreen
+            status={app.bootstrap.status}
+            defaultInstallPath={app.bootstrap.status?.defaultInstallPath ?? ""}
+            installPath={app.bootstrap.installPath}
+            kokoroBackend={app.bootstrap.backend}
+            selectedPackIds={app.bootstrap.selectedPackIds}
+            onInstallPathChange={app.bootstrap.setInstallPath}
+            onBrowseInstallPath={() => {
+              void app.bootstrap.browseInstallPath();
+            }}
+            onUseDefaultInstallPath={app.bootstrap.useDefaultInstallPath}
+            onBackendChange={app.bootstrap.setBackend}
+            onTogglePack={app.bootstrap.togglePack}
+            onStart={() => {
+              void app.bootstrap.start();
+            }}
+          />
+        )}
         {app.settingsOpen ? (
           <SettingsPanel
             onClose={() => app.setSettingsOpen(false)}
@@ -114,6 +119,26 @@ export function App() {
             onInstallDownloadedUpdate={app.installDownloadedUpdate}
             onRefreshDiagnostics={app.refreshDiagnostics}
             onRevealCrashDumps={app.revealCrashDumps}
+            projectHistory={app.projectHistory}
+            projectHistoryLoading={app.projectHistoryLoading}
+            projectHistoryError={app.projectHistoryError}
+            onOpenProjectFromHistory={async (projectId) => {
+              await app.openProjectFromHistory(projectId);
+              app.setSettingsOpen(false);
+            }}
+            bootstrapStatus={app.bootstrap.status}
+            bootstrapAutoStartEnabled={app.bootstrap.autoStartEnabled}
+            bootstrapDefaultInstallPath={app.bootstrap.status?.defaultInstallPath ?? ""}
+            bootstrapInstallPath={app.bootstrap.installPath}
+            bootstrapBackend={app.bootstrap.backend}
+            bootstrapSelectedPackIds={app.bootstrap.selectedPackIds}
+            onBootstrapInstallPathChange={app.bootstrap.setInstallPath}
+            onBootstrapBrowseInstallPath={app.bootstrap.browseInstallPath}
+            onBootstrapUseDefaultInstallPath={app.bootstrap.useDefaultInstallPath}
+            onBootstrapBackendChange={app.bootstrap.setBackend}
+            onBootstrapTogglePack={app.bootstrap.togglePack}
+            onBootstrapAutoStartEnabledChange={app.bootstrap.setAutoStartEnabled}
+            onBootstrapStart={app.bootstrap.start}
           />
         ) : null}
       </>
@@ -167,6 +192,18 @@ export function App() {
                   }}
                   onPasteImport={app.pasteImport}
                   onCreateProject={app.createProject}
+                  projectHistory={app.projectHistory}
+                  projectHistoryLoading={app.projectHistoryLoading}
+                  projectHistoryError={app.projectHistoryError}
+                  selectedProjectHistoryId={app.selectedProjectHistoryId}
+                  selectedProjectHistory={app.selectedProjectHistory}
+                  projectHistoryDetailsLoading={app.projectHistoryDetailsLoading}
+                  projectHistoryDetailsError={app.projectHistoryDetailsError}
+                  onRefreshProjectHistory={app.refreshProjectHistory}
+                  onSelectProjectHistory={app.selectProjectHistory}
+                  onReworkSelectedProject={app.reworkSelectedProject}
+                  onOpenSelectedProjectInRender={app.openSelectedProjectInRender}
+                  onRevealInFileManager={app.revealInFileManager}
                 />
               )}
             />
@@ -251,6 +288,27 @@ export function App() {
           onInstallDownloadedUpdate={app.installDownloadedUpdate}
           onRefreshDiagnostics={app.refreshDiagnostics}
           onRevealCrashDumps={app.revealCrashDumps}
+          projectHistory={app.projectHistory}
+          projectHistoryLoading={app.projectHistoryLoading}
+          projectHistoryError={app.projectHistoryError}
+          onOpenProjectFromHistory={async (projectId) => {
+            await app.openProjectFromHistory(projectId);
+            app.setSettingsOpen(false);
+            navigateToView("script");
+          }}
+          bootstrapStatus={app.bootstrap.status}
+          bootstrapAutoStartEnabled={app.bootstrap.autoStartEnabled}
+          bootstrapDefaultInstallPath={app.bootstrap.status?.defaultInstallPath ?? ""}
+          bootstrapInstallPath={app.bootstrap.installPath}
+          bootstrapBackend={app.bootstrap.backend}
+          bootstrapSelectedPackIds={app.bootstrap.selectedPackIds}
+          onBootstrapInstallPathChange={app.bootstrap.setInstallPath}
+          onBootstrapBrowseInstallPath={app.bootstrap.browseInstallPath}
+          onBootstrapUseDefaultInstallPath={app.bootstrap.useDefaultInstallPath}
+          onBootstrapBackendChange={app.bootstrap.setBackend}
+          onBootstrapTogglePack={app.bootstrap.togglePack}
+          onBootstrapAutoStartEnabledChange={app.bootstrap.setAutoStartEnabled}
+          onBootstrapStart={app.bootstrap.start}
         />
       ) : null}
     </>

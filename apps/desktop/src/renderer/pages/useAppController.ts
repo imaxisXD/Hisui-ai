@@ -5,12 +5,15 @@ import type {
   KokoroBackendMode,
   LlmPrepInput,
   Project,
+  ProjectHistoryDetails,
+  ProjectHistoryItem,
   RenderJob,
   RenderOptions,
   SpeakerProfile,
   TtsModel,
   RuntimeResourceSettings,
   UpdateRuntimeResourceSettingsInput,
+  UpdateUiPreferencesInput,
   UpdateState,
   DiagnosticsSnapshot,
   VoicePreviewInput,
@@ -36,7 +39,9 @@ interface UseAppControllerOptions {
 
 interface AppControllerBootstrap {
   isReady: boolean;
+  showStartupSplash: boolean;
   status: BootstrapStatus | null;
+  autoStartEnabled: boolean;
   installPath: string;
   backend: KokoroBackendMode;
   selectedPackIds: string[];
@@ -46,6 +51,7 @@ interface AppControllerBootstrap {
   browseInstallPath: () => Promise<string | null>;
   useDefaultInstallPath: () => void;
   togglePack: (packId: string) => void;
+  setAutoStartEnabled: (value: boolean) => Promise<void>;
   start: (override?: { installPath?: string; backend?: KokoroBackendMode; selectedPackIds?: string[] }) => Promise<void>;
 }
 
@@ -66,6 +72,18 @@ interface AppControllerResult {
   importResult: ImportResult | null;
   importing: boolean;
   importError: string | null;
+  projectHistory: ProjectHistoryItem[];
+  projectHistoryLoading: boolean;
+  projectHistoryError: string | null;
+  selectedProjectHistoryId: string | null;
+  selectedProjectHistory: ProjectHistoryDetails | null;
+  projectHistoryDetailsLoading: boolean;
+  projectHistoryDetailsError: string | null;
+  refreshProjectHistory: () => Promise<void>;
+  selectProjectHistory: (projectId: string) => Promise<void>;
+  reworkSelectedProject: () => Promise<void>;
+  openSelectedProjectInRender: () => Promise<void>;
+  openProjectFromHistory: (projectId: string) => Promise<void>;
   importBook: () => Promise<void>;
   browseImportFile: () => Promise<string | null>;
   pasteImport: (title: string, text: string) => void;
@@ -185,12 +203,29 @@ function isRuntimeResourceDraftDirty(
   );
 }
 
+function serializeUiPreferencesSignature(input: UpdateUiPreferencesInput): string {
+  return JSON.stringify({
+    outputDir: input.outputDir ?? "",
+    outputFileName: input.outputFileName ?? "podcast-output",
+    speed: input.speed ?? 1,
+    enableLlmPrep: input.enableLlmPrep === true,
+    selectedProjectHistoryId: input.selectedProjectHistoryId ?? null
+  });
+}
+
 export function useAppController({ currentView, navigateToView }: UseAppControllerOptions): AppControllerResult {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [filePath, setFilePath] = useState("");
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [projectHistory, setProjectHistory] = useState<ProjectHistoryItem[]>([]);
+  const [projectHistoryLoading, setProjectHistoryLoading] = useState(false);
+  const [projectHistoryError, setProjectHistoryError] = useState<string | null>(null);
+  const [selectedProjectHistoryId, setSelectedProjectHistoryId] = useState<string | null>(null);
+  const [selectedProjectHistory, setSelectedProjectHistory] = useState<ProjectHistoryDetails | null>(null);
+  const [projectHistoryDetailsLoading, setProjectHistoryDetailsLoading] = useState(false);
+  const [projectHistoryDetailsError, setProjectHistoryDetailsError] = useState<string | null>(null);
 
   const [project, setProject] = useState<Project | null>(null);
   const [voices, setVoices] = useState<VoiceDefinition[]>([]);
@@ -231,8 +266,10 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
   const [bootstrapBackend, setBootstrapBackend] = useState<KokoroBackendMode>("auto");
   const [selectedPackIds, setSelectedPackIds] = useState<string[]>([]);
   const [bootstrapLoadError, setBootstrapLoadError] = useState<string | null>(null);
+  const [bootstrapAutoStarting, setBootstrapAutoStarting] = useState(false);
   const voicesLoadedRef = useRef(false);
   const selectionTouchedRef = useRef(false);
+  const bootstrapAutoStartAttemptedRef = useRef(false);
   const lastBootstrapPhaseRef = useRef<BootstrapStatus["phase"] | null>(null);
   const lastRenderStateRef = useRef<RenderJob["state"] | null>(null);
   const outputDirInitializedRef = useRef(false);
@@ -240,6 +277,9 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const previewObjectUrlCacheRef = useRef<Map<string, string>>(new Map());
   const previewRequestTokenRef = useRef(0);
+  const projectHistoryDetailsRequestRef = useRef(0);
+  const uiPreferencesHydratedRef = useRef(false);
+  const uiPreferencesSignatureRef = useRef("");
 
   const normalizeSelectedPackIds = (candidateIds: string[], status: BootstrapStatus): string[] => {
     const availableIds = new Set(status.modelPacks.map((pack) => pack.id));
@@ -255,6 +295,13 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
     return [...selected];
   };
 
+  const resolvePreferredPackSelection = (status: BootstrapStatus): string[] => {
+    const installed = status.modelPacks.filter((pack) => pack.state === "installed").map((pack) => pack.id);
+    const required = status.modelPacks.filter((pack) => pack.required).map((pack) => pack.id);
+    const defaults = installed.length > 0 ? installed : required;
+    return normalizeSelectedPackIds(defaults, status);
+  };
+
   const applyBootstrapStatus = (next: BootstrapStatus) => {
     setBootstrapStatus(next);
     setBootstrapInstallPath(next.installPath);
@@ -263,10 +310,7 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
       if (selectionTouchedRef.current && previous.length > 0) {
         return normalizeSelectedPackIds(previous, next);
       }
-      const installed = next.modelPacks.filter((pack) => pack.state === "installed").map((pack) => pack.id);
-      const required = next.modelPacks.filter((pack) => pack.required).map((pack) => pack.id);
-      const defaults = installed.length > 0 ? installed : required;
-      return normalizeSelectedPackIds(defaults, next);
+      return resolvePreferredPackSelection(next);
     });
   };
 
@@ -286,6 +330,107 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
       setVoices([]);
       setVoicesError(error instanceof Error ? error.message : String(error));
     }
+  };
+
+  const refreshProjectHistory = async () => {
+    setProjectHistoryLoading(true);
+    try {
+      const items = await getDesktopApi().listProjects({ limit: 120 });
+      setProjectHistory(items);
+      setProjectHistoryError(null);
+      const nextSelectedProjectId = selectedProjectHistoryId && items.some((item) => item.id === selectedProjectHistoryId)
+        ? selectedProjectHistoryId
+        : (items[0]?.id ?? null);
+
+      if (!nextSelectedProjectId) {
+        projectHistoryDetailsRequestRef.current += 1;
+        setSelectedProjectHistoryId(null);
+        setSelectedProjectHistory(null);
+        setProjectHistoryDetailsError(null);
+        setProjectHistoryDetailsLoading(false);
+        return;
+      }
+
+      if (nextSelectedProjectId !== selectedProjectHistoryId) {
+        await selectProjectHistory(nextSelectedProjectId);
+      } else {
+        await loadProjectHistoryDetails(nextSelectedProjectId);
+      }
+    } catch (error) {
+      setProjectHistoryError(error instanceof Error ? error.message : String(error));
+      setProjectHistory([]);
+    } finally {
+      setProjectHistoryLoading(false);
+    }
+  };
+
+  const loadProjectHistoryDetails = async (projectId: string) => {
+    const requestId = projectHistoryDetailsRequestRef.current + 1;
+    projectHistoryDetailsRequestRef.current = requestId;
+    setProjectHistoryDetailsLoading(true);
+    setProjectHistoryDetailsError(null);
+    try {
+      const details = await getDesktopApi().getProjectHistoryDetails(projectId, 10);
+      if (projectHistoryDetailsRequestRef.current !== requestId) {
+        return;
+      }
+      setSelectedProjectHistory(details);
+      if (!details) {
+        setProjectHistoryDetailsError("Project not found.");
+      }
+    } catch (error) {
+      if (projectHistoryDetailsRequestRef.current !== requestId) {
+        return;
+      }
+      setSelectedProjectHistory(null);
+      setProjectHistoryDetailsError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (projectHistoryDetailsRequestRef.current === requestId) {
+        setProjectHistoryDetailsLoading(false);
+      }
+    }
+  };
+
+  const selectProjectHistory = async (projectId: string) => {
+    if (!projectId.trim()) {
+      projectHistoryDetailsRequestRef.current += 1;
+      setSelectedProjectHistoryId(null);
+      setSelectedProjectHistory(null);
+      setProjectHistoryDetailsError(null);
+      setProjectHistoryDetailsLoading(false);
+      return;
+    }
+    setSelectedProjectHistoryId(projectId);
+    await loadProjectHistoryDetails(projectId);
+  };
+
+  const openProjectFromHistory = async (projectId: string) => {
+    const loaded = await getDesktopApi().getProject(projectId);
+    if (!loaded) {
+      throw new Error("Project not found.");
+    }
+    setProject(loaded);
+    setOutputFileName(loaded.title);
+    await selectProjectHistory(projectId);
+    setImportResult(null);
+  };
+
+  const reworkSelectedProject = async () => {
+    const projectId = selectedProjectHistoryId;
+    if (!projectId) {
+      return;
+    }
+    await openProjectFromHistory(projectId);
+    navigateToView("script");
+  };
+
+  const openSelectedProjectInRender = async () => {
+    const projectId = selectedProjectHistoryId;
+    if (!projectId) {
+      return;
+    }
+    await openProjectFromHistory(projectId);
+    navigateToView("render");
   };
 
   const applyRuntimeResourceSettings = (
@@ -379,6 +524,17 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
       setBootstrapLoadError(null);
     } catch (error) {
       setBootstrapLoadError(error instanceof Error ? error.message : String(error));
+      setBootstrapAutoStarting(false);
+    }
+  };
+
+  const setBootstrapAutoStartEnabled = async (enabled: boolean) => {
+    try {
+      const next = await getDesktopApi().setBootstrapAutoStartEnabled(enabled);
+      applyBootstrapStatus(next);
+      setBootstrapLoadError(null);
+    } catch (error) {
+      setBootstrapLoadError(error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -430,10 +586,61 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
       setBootstrapLoadError(DESKTOP_BRIDGE_ERROR);
       return;
     }
-    void refreshBootstrapStatus().catch((error) => {
-      setBootstrapLoadError(error instanceof Error ? error.message : String(error));
-    });
+    void (async () => {
+      try {
+        const status = await refreshBootstrapStatus();
+        try {
+          const preferences = await getDesktopApi().getUiPreferences();
+          if (preferences.outputDir.trim()) {
+            outputDirInitializedRef.current = true;
+            setOutputDir(preferences.outputDir);
+          }
+          setOutputFileName(preferences.outputFileName);
+          setSpeed(preferences.speed);
+          setEnableLlmPrep(preferences.enableLlmPrep);
+          if (preferences.selectedProjectHistoryId) {
+            void selectProjectHistory(preferences.selectedProjectHistoryId);
+          }
+          uiPreferencesSignatureRef.current = serializeUiPreferencesSignature({
+            outputDir: preferences.outputDir,
+            outputFileName: preferences.outputFileName,
+            speed: preferences.speed,
+            enableLlmPrep: preferences.enableLlmPrep,
+            selectedProjectHistoryId: preferences.selectedProjectHistoryId ?? null
+          });
+        } catch {
+          uiPreferencesSignatureRef.current = serializeUiPreferencesSignature({
+            outputDir: "",
+            outputFileName: "podcast-output",
+            speed: 1,
+            enableLlmPrep: false,
+            selectedProjectHistoryId: null
+          });
+        } finally {
+          uiPreferencesHydratedRef.current = true;
+        }
+
+        if (
+          status.phase === "awaiting-input"
+          && !status.firstRun
+          && status.autoStartEnabled
+          && !bootstrapAutoStartAttemptedRef.current
+        ) {
+          bootstrapAutoStartAttemptedRef.current = true;
+          setBootstrapAutoStarting(true);
+          await startBootstrap({
+            installPath: status.installPath,
+            backend: status.kokoroBackend,
+            selectedPackIds: resolvePreferredPackSelection(status)
+          });
+        }
+      } catch (error) {
+        setBootstrapLoadError(error instanceof Error ? error.message : String(error));
+        uiPreferencesHydratedRef.current = true;
+      }
+    })();
     void refreshRuntimeResourceSettings({ preserveDraftWhenDirty: false });
+    void refreshProjectHistory();
   }, []);
 
   useEffect(() => {
@@ -452,6 +659,43 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
         // Keep manual entry available even if default path lookup fails.
       });
   }, []);
+
+  useEffect(() => {
+    if (!window.app || !uiPreferencesHydratedRef.current) {
+      return;
+    }
+
+    const payload: UpdateUiPreferencesInput = {
+      outputDir,
+      outputFileName,
+      speed,
+      enableLlmPrep,
+      selectedProjectHistoryId: selectedProjectHistoryId ?? null
+    };
+    const nextSignature = serializeUiPreferencesSignature(payload);
+    if (nextSignature === uiPreferencesSignatureRef.current) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      void getDesktopApi()
+        .updateUiPreferences(payload)
+        .then((saved) => {
+          uiPreferencesSignatureRef.current = serializeUiPreferencesSignature({
+            outputDir: saved.outputDir,
+            outputFileName: saved.outputFileName,
+            speed: saved.speed,
+            enableLlmPrep: saved.enableLlmPrep,
+            selectedProjectHistoryId: saved.selectedProjectHistoryId ?? null
+          });
+        })
+        .catch(() => {
+          // Leave in-memory state active even if persistence fails.
+        });
+    }, 200);
+
+    return () => clearTimeout(timeout);
+  }, [outputDir, outputFileName, speed, enableLlmPrep, selectedProjectHistoryId]);
 
   useEffect(() => {
     if (!bootstrapStatus || bootstrapStatus.phase !== "running") {
@@ -487,6 +731,9 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
       voicesLoadedRef.current = true;
       void loadVoices();
     }
+    if (bootstrapStatus.phase === "ready" || bootstrapStatus.phase === "error" || bootstrapStatus.phase === "awaiting-input") {
+      setBootstrapAutoStarting(false);
+    }
   }, [bootstrapStatus]);
 
   useEffect(() => {
@@ -520,6 +767,12 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
       errorText: renderJob.errorText,
       outputMp3Path: renderJob.outputMp3Path
     });
+    if (renderJob.state === "completed" || renderJob.state === "failed" || renderJob.state === "canceled") {
+      void refreshProjectHistory();
+      if (selectedProjectHistoryId === renderJob.projectId) {
+        void loadProjectHistoryDetails(renderJob.projectId);
+      }
+    }
     lastRenderStateRef.current = renderJob.state;
   }, [renderJob]);
 
@@ -591,6 +844,8 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
       });
       setProject(created);
       setOutputFileName(created.title);
+      await selectProjectHistory(created.id);
+      void refreshProjectHistory();
       navigateToView("script");
     } catch (error) {
       setImportError(error instanceof Error ? error.message : String(error));
@@ -646,6 +901,10 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
       const saved = await getDesktopApi().updateSegments({ projectId: project.id, updates });
       setProject(saved);
       setSaveState("saved");
+      void refreshProjectHistory();
+      if (selectedProjectHistoryId === saved.id) {
+        void loadProjectHistoryDetails(saved.id);
+      }
     } catch (error) {
       setSaveState("error");
       setSaveError(error instanceof Error ? error.message : String(error));
@@ -679,6 +938,10 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
       });
       setProject(saved);
       setSaveState("saved");
+      void refreshProjectHistory();
+      if (selectedProjectHistoryId === saved.id) {
+        void loadProjectHistoryDetails(saved.id);
+      }
     } catch (error) {
       setSaveState("error");
       setSaveError(error instanceof Error ? error.message : String(error));
@@ -741,6 +1004,9 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
       };
       const job = await getDesktopApi().renderProject(project.id, options);
       setRenderJob(job);
+      if (selectedProjectHistoryId === project.id) {
+        void loadProjectHistoryDetails(project.id);
+      }
       navigateToView("render");
     } catch (error) {
       setRenderError(error instanceof Error ? error.message : String(error));
@@ -978,6 +1244,7 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
     void refreshUpdateState();
     void refreshDiagnostics();
     void refreshRuntimeResourceSettings();
+    void refreshProjectHistory();
   }, [settingsOpen]);
 
   useEffect(() => {
@@ -995,13 +1262,27 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
   }, [bootstrapStatus?.phase, runtimeResourceSettings?.promptPending]);
 
   const bootstrapScreenStatus = useMemo<BootstrapStatus | null>(() => {
-    if (!bootstrapLoadError || bootstrapStatus) {
-      return bootstrapStatus;
+    if (bootstrapStatus) {
+      if (!bootstrapLoadError) {
+        return bootstrapStatus;
+      }
+      return {
+        ...bootstrapStatus,
+        phase: bootstrapStatus.phase === "running" ? "running" : "error",
+        step: "error",
+        message: "Failed to start runtime.",
+        error: bootstrapLoadError
+      };
+    }
+
+    if (!bootstrapLoadError) {
+      return null;
     }
 
     return {
       phase: "error",
       firstRun: true,
+      autoStartEnabled: true,
       defaultInstallPath: bootstrapInstallPath,
       installPath: bootstrapInstallPath,
       kokoroBackend: bootstrapBackend,
@@ -1032,6 +1313,18 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
     importResult,
     importing,
     importError,
+    projectHistory,
+    projectHistoryLoading,
+    projectHistoryError,
+    selectedProjectHistoryId,
+    selectedProjectHistory,
+    projectHistoryDetailsLoading,
+    projectHistoryDetailsError,
+    refreshProjectHistory,
+    selectProjectHistory,
+    reworkSelectedProject,
+    openSelectedProjectInRender,
+    openProjectFromHistory,
     importBook,
     browseImportFile,
     pasteImport,
@@ -1080,7 +1373,9 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
     saveRuntimeResourceSettings,
     bootstrap: {
       isReady: bootstrapStatus?.phase === "ready",
+      showStartupSplash: bootstrapAutoStarting && bootstrapStatus?.phase !== "ready",
       status: bootstrapScreenStatus,
+      autoStartEnabled: bootstrapStatus?.autoStartEnabled !== false,
       installPath: bootstrapInstallPath,
       backend: bootstrapBackend,
       selectedPackIds,
@@ -1090,6 +1385,7 @@ export function useAppController({ currentView, navigateToView }: UseAppControll
       browseInstallPath: browseBootstrapInstallPath,
       useDefaultInstallPath: useDefaultBootstrapInstallPath,
       togglePack: toggleBootstrapPack,
+      setAutoStartEnabled: setBootstrapAutoStartEnabled,
       start: startBootstrap
     }
   };

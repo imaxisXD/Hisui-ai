@@ -1,7 +1,7 @@
 import { app } from "electron";
 import { spawn } from "node:child_process";
 import { constants, createWriteStream } from "node:fs";
-import { access, copyFile, cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { access, copyFile, cp, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
 import { once } from "node:events";
 import { dirname, join, relative, resolve } from "node:path";
 import type {
@@ -16,12 +16,14 @@ import type {
 import type { AudioSidecarManager } from "../sidecars/audioSidecarManager.js";
 import { getModelsDir } from "../utils/paths.js";
 import { logDebug, logError, logInfo, logWarn } from "../utils/logging.js";
+import { AppSettingsStore } from "../system/appSettingsStore.js";
 
 interface PersistedBootstrapState {
   installPath: string;
   kokoroBackend: KokoroBackendMode;
   installedPacks: string[];
   completedAt: string;
+  autoStartEnabled?: boolean;
 }
 
 interface ModelPackDefinition {
@@ -47,6 +49,7 @@ interface CopyEntry {
 }
 
 const STATE_FILE_NAME = "bootstrap-state.json";
+const SETTINGS_KEY = "bootstrap.state.v1";
 const DOWNLOADS_DIR_NAME = ".downloads";
 const ALLOWED_BACKENDS: KokoroBackendMode[] = ["auto", "node", "node-first", "node-fallback"];
 
@@ -75,19 +78,31 @@ const MODEL_PACKS: ModelPackDefinition[] = [
 
 const MODEL_PACK_BY_ID = new Map(MODEL_PACKS.map((pack) => [pack.id, pack]));
 
+interface BootstrapManagerOptions {
+  settingsStore?: AppSettingsStore;
+  getUserDataPath?: () => string;
+  legacyStatePath?: string;
+}
+
 export class BootstrapManager {
   private readonly audioSidecar: AudioSidecarManager;
-  private statePath = "";
+  private readonly settingsStore: AppSettingsStore;
+  private readonly getUserDataPath: () => string;
+  private readonly legacyStatePathOverride?: string;
   private status: BootstrapStatus;
   private initialized = false;
   private currentRun: Promise<void> | null = null;
   private lastProgressUpdate = 0;
 
-  constructor(audioSidecar: AudioSidecarManager) {
+  constructor(audioSidecar: AudioSidecarManager, options: BootstrapManagerOptions = {}) {
     this.audioSidecar = audioSidecar;
+    this.settingsStore = options.settingsStore ?? new AppSettingsStore();
+    this.getUserDataPath = options.getUserDataPath ?? (() => app.getPath("userData"));
+    this.legacyStatePathOverride = options.legacyStatePath;
     this.status = {
       phase: "awaiting-input",
       firstRun: true,
+      autoStartEnabled: true,
       defaultInstallPath: "",
       installPath: "",
       kokoroBackend: "auto",
@@ -169,40 +184,78 @@ export class BootstrapManager {
     return { ...this.status, modelPacks: this.status.modelPacks.map(clonePackStatus) };
   }
 
+  async setAutoStartEnabled(enabled: boolean): Promise<BootstrapStatus> {
+    await this.ensureInitialized();
+    const nextAutoStartEnabled = enabled === false ? false : true;
+    this.status.autoStartEnabled = nextAutoStartEnabled;
+
+    const persisted = this.settingsStore.get<Partial<PersistedBootstrapState>>(SETTINGS_KEY);
+    this.persistState({
+      installPath: persisted?.installPath ? resolve(persisted.installPath) : this.status.installPath,
+      kokoroBackend: persisted?.kokoroBackend && ALLOWED_BACKENDS.includes(persisted.kokoroBackend)
+        ? persisted.kokoroBackend
+        : this.status.kokoroBackend,
+      installedPacks: Array.isArray(persisted?.installedPacks)
+        ? persisted.installedPacks.filter((id): id is string => typeof id === "string")
+        : this.status.modelPacks.filter((pack) => pack.state === "installed").map((pack) => pack.id),
+      completedAt: typeof persisted?.completedAt === "string" ? persisted.completedAt : new Date().toISOString(),
+      autoStartEnabled: nextAutoStartEnabled
+    });
+    return { ...this.status, modelPacks: this.status.modelPacks.map(clonePackStatus) };
+  }
+
   private async ensureInitialized(): Promise<void> {
     if (this.initialized) {
       return;
     }
 
     this.initialized = true;
-    const userDataPath = app.getPath("userData");
+    const userDataPath = this.getUserDataPath();
     const defaultInstallPath = join(userDataPath, "offline-runtime");
-    this.statePath = join(userDataPath, STATE_FILE_NAME);
+    const legacyStatePath = this.resolveLegacyStatePath(userDataPath);
     this.status.defaultInstallPath = defaultInstallPath;
     this.status.installPath = defaultInstallPath;
     logDebug("bootstrap", "initialized default runtime paths", {
       userDataPath,
       defaultInstallPath,
-      statePath: this.statePath
+      statePath: legacyStatePath
     });
 
-    try {
-      const raw = await readFile(this.statePath, "utf-8");
-      const parsed = JSON.parse(raw) as Partial<PersistedBootstrapState>;
-      if (parsed.installPath) {
-        this.status.installPath = resolve(parsed.installPath);
+    let persisted = this.settingsStore.get<Partial<PersistedBootstrapState>>(SETTINGS_KEY);
+    if (!persisted) {
+      try {
+        const raw = await readFile(legacyStatePath, "utf-8");
+        persisted = JSON.parse(raw) as Partial<PersistedBootstrapState>;
+        const normalizedPersisted: PersistedBootstrapState = {
+          installPath: persisted.installPath ? resolve(persisted.installPath) : defaultInstallPath,
+          kokoroBackend: persisted.kokoroBackend && ALLOWED_BACKENDS.includes(persisted.kokoroBackend)
+            ? persisted.kokoroBackend
+            : "auto",
+          installedPacks: Array.isArray(persisted.installedPacks)
+            ? persisted.installedPacks.filter((id): id is string => typeof id === "string")
+            : [],
+          completedAt: typeof persisted.completedAt === "string" ? persisted.completedAt : new Date().toISOString(),
+          autoStartEnabled: persisted.autoStartEnabled === false ? false : true
+        };
+        this.settingsStore.set<PersistedBootstrapState>(SETTINGS_KEY, normalizedPersisted);
+        persisted = normalizedPersisted;
+        logInfo("bootstrap", "migrated legacy bootstrap state into sqlite", {
+          installPath: persisted.installPath,
+          legacyStatePath
+        });
+      } catch {
+        // Missing state is expected on first run.
+        logDebug("bootstrap", "no persisted bootstrap state found");
       }
-      if (parsed.kokoroBackend && ALLOWED_BACKENDS.includes(parsed.kokoroBackend)) {
-        this.status.kokoroBackend = parsed.kokoroBackend;
-      }
-      logDebug("bootstrap", "restored persisted bootstrap state", {
-        installPath: this.status.installPath,
-        kokoroBackend: this.status.kokoroBackend
-      });
-    } catch {
-      // Missing state is expected on first run.
-      logDebug("bootstrap", "no persisted bootstrap state found");
     }
+
+    if (persisted?.installPath) {
+      this.status.installPath = resolve(persisted.installPath);
+    }
+    if (persisted?.kokoroBackend && ALLOWED_BACKENDS.includes(persisted.kokoroBackend)) {
+      this.status.kokoroBackend = persisted.kokoroBackend;
+    }
+    this.status.autoStartEnabled = persisted?.autoStartEnabled === false ? false : true;
 
     await this.refreshPackStatuses();
     this.pushDefaultRuntimeConfig(this.resolveRuntimeModeFromInstalledPacks());
@@ -427,11 +480,12 @@ export class BootstrapManager {
       }
 
       await this.refreshPackStatuses();
-      await this.persistState({
+      this.persistState({
         installPath: input.installPath,
         kokoroBackend: input.kokoroBackend,
         installedPacks: this.status.modelPacks.filter((pack) => pack.state === "installed").map((pack) => pack.id),
-        completedAt: new Date().toISOString()
+        completedAt: new Date().toISOString(),
+        autoStartEnabled: this.status.autoStartEnabled
       });
       logDebug("bootstrap", "persisted bootstrap state", {
         installPath: input.installPath,
@@ -639,9 +693,8 @@ export class BootstrapManager {
     return true;
   }
 
-  private async persistState(state: PersistedBootstrapState): Promise<void> {
-    await mkdir(dirname(this.statePath), { recursive: true });
-    await writeFile(this.statePath, JSON.stringify(state, null, 2), "utf-8");
+  private persistState(state: PersistedBootstrapState): void {
+    this.settingsStore.set<PersistedBootstrapState>(SETTINGS_KEY, state);
   }
 
   private resolveRuntimeModeFromInstalledPacks(): AudioRuntimeMode {
@@ -658,6 +711,13 @@ export class BootstrapManager {
       kokoroBackend: this.status.kokoroBackend,
       runtimeMode
     });
+  }
+
+  private resolveLegacyStatePath(userDataPath: string): string {
+    if (this.legacyStatePathOverride) {
+      return this.legacyStatePathOverride;
+    }
+    return join(userDataPath, STATE_FILE_NAME);
   }
 }
 

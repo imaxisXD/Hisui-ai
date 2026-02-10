@@ -9,11 +9,13 @@ import type {
   BootstrapStartInput,
   CreateProjectInput,
   LlmPrepInput,
+  ProjectHistoryQuery,
   RenderJob,
   RenderOptions,
   RenderProgress,
   UpdateSegmentsInput,
   UpdateSpeakersInput,
+  UpdateUiPreferencesInput,
   UpdateRuntimeResourceSettingsInput,
   VoicePreviewInput
 } from "../../shared/types.js";
@@ -22,6 +24,9 @@ import { buildProject } from "../ingestion/projectBuilder.js";
 import {
   createProject,
   getProject,
+  getProjectHistoryDetails,
+  listProjects,
+  listRenderJobsForProject,
   getRenderJob,
   updateSpeakers,
   updateSegments,
@@ -39,6 +44,7 @@ import { logDebug, logError, logInfo, logWarn } from "../utils/logging.js";
 import { UpdaterService } from "../system/updaterService.js";
 import { DiagnosticsService } from "../system/diagnostics.js";
 import { RuntimeResourceSettingsService } from "../system/runtimeResourceSettingsService.js";
+import { UiPreferencesService } from "../system/uiPreferencesService.js";
 
 interface IpcDependencies {
   audioSidecar: AudioSidecarManager;
@@ -47,6 +53,7 @@ interface IpcDependencies {
   updater: UpdaterService;
   diagnostics: DiagnosticsService;
   runtimeResourceSettings: RuntimeResourceSettingsService;
+  uiPreferences: UiPreferencesService;
   assertTrustedIpcSender: (event: IpcMainInvokeEvent) => void;
 }
 
@@ -113,6 +120,10 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
       selectedPackIds: input.selectedPackIds
     });
     return deps.bootstrap.start(input);
+  });
+
+  registerSecureHandle(IPC_CHANNELS.setBootstrapAutoStartEnabled, async (_event, enabled: boolean) => {
+    return deps.bootstrap.setAutoStartEnabled(enabled);
   });
 
   registerSecureHandle(IPC_CHANNELS.importBook, async (_event, filePath: string) => {
@@ -367,8 +378,28 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     shell.showItemInFolder(trimmedPath);
   });
 
-  registerSecureHandle("app:get-project", (_event, projectId: string) => {
+  registerSecureHandle(IPC_CHANNELS.getProject, (_event, projectId: string) => {
     return getProject(projectId);
+  });
+
+  registerSecureHandle(IPC_CHANNELS.listProjects, (_event, query?: ProjectHistoryQuery) => {
+    return listProjects(query ?? {});
+  });
+
+  registerSecureHandle(IPC_CHANNELS.listProjectRenderJobs, (_event, projectId: string, limit?: number) => {
+    return listRenderJobsForProject(projectId, limit);
+  });
+
+  registerSecureHandle(IPC_CHANNELS.getProjectHistoryDetails, (_event, projectId: string, limit?: number) => {
+    return getProjectHistoryDetails(projectId, limit);
+  });
+
+  registerSecureHandle(IPC_CHANNELS.getUiPreferences, () => {
+    return deps.uiPreferences.getPreferences();
+  });
+
+  registerSecureHandle(IPC_CHANNELS.updateUiPreferences, (_event, input: UpdateUiPreferencesInput) => {
+    return deps.uiPreferences.updatePreferences(input);
   });
 
   registerSecureHandle(IPC_CHANNELS.showOpenFileDialog, async (event, filters?: { name: string; extensions: string[] }[]) => {
