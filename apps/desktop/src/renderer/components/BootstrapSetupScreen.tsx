@@ -1,6 +1,7 @@
+import { cn } from "../lib/utils";
 import type { BootstrapStatus, KokoroBackendMode } from "../../shared/types";
 import { useTheme } from "./ThemeContext";
-import { HisuiButton } from "./HisuiButton";
+import { RuntimeSetupPanel } from "./RuntimeSetupPanel";
 
 interface BootstrapSetupScreenProps {
   status: BootstrapStatus | null;
@@ -32,191 +33,74 @@ export function BootstrapSetupScreen({
   const { theme } = useTheme();
   const phase = status?.phase ?? "running";
   const percent = status?.percent ?? 0;
-  const bridgeUnavailable = Boolean(status?.error?.toLowerCase().includes("desktop bridge unavailable"));
-  const canStart = (phase === "awaiting-input" || phase === "error") && !bridgeUnavailable;
-  const canEditInstallPath = phase !== "running";
-  const canPickInstallPath = canEditInstallPath && !bridgeUnavailable;
-  const packList = status?.modelPacks ?? [];
-  const trimmedDefaultPath = defaultInstallPath.trim();
-  const usesDefaultPath = trimmedDefaultPath.length > 0 && installPath.trim() === trimmedDefaultPath;
-
   const appName = theme === "hisui" ? "Hisui" : "Folio";
 
   return (
-    <main className="setup-shell">
-      {/* Left: brand + hero */}
-      <section className="setup-hero">
-        <div className="setup-hero-inner">
-          <span className="setup-brand-dot" aria-hidden="true" />
-          <h1>{appName}</h1>
-          <p className="setup-tagline">
+    <main className="grid min-h-screen grid-cols-[minmax(240px,360px)_minmax(400px,720px)] items-start justify-center gap-6 bg-ui-body-bg p-8 max-[1024px]:grid-cols-1 max-[1024px]:p-4">
+      <section className="sticky top-8 flex flex-col gap-6 rounded-lg border border-ui-border bg-ui-bg-card p-6 animate-[staggerReveal_500ms_cubic-bezier(0.16,1,0.3,1)] max-[1024px]:static">
+        <div className="flex flex-col gap-[0.4rem]">
+          <span className="mb-2 inline-block h-2 w-2 rounded-full bg-ui-accent animate-[pulse_2.4s_ease-in-out_infinite]" aria-hidden="true" />
+          <h1 className="m-0 font-geist-pixel text-[clamp(1.6rem,2.5vw,2.2rem)] leading-[1.1]">{appName}</h1>
+          <p className="m-0 text-[0.85rem] leading-[1.5] text-ui-text-secondary">
             {status?.firstRun
               ? "First-time setup. Install the core narration runtime to get started."
               : "Starting local services. This takes a moment."}
           </p>
         </div>
 
-        {/* Overall progress */}
-        <div className="setup-overall">
-          <div className="progress-ring-container">
-            <svg className="progress-ring" viewBox="0 0 80 80" role="img" aria-label={`Progress: ${percent}%`}>
-              <circle className="progress-ring-bg" cx="40" cy="40" r="34" />
+        <div className="flex items-center gap-3 rounded-md border border-ui-border bg-ui-bg-surface p-[0.85rem]">
+          <div className="relative h-[52px] w-[52px] shrink-0">
+            <svg className="h-full w-full -rotate-90" viewBox="0 0 80 80" role="img" aria-label={`Progress: ${percent}%`}>
+              <circle className="fill-none stroke-ui-border-strong [stroke-width:4]" cx="40" cy="40" r="34" />
               <circle
-                className="progress-ring-fill"
-                cx="40" cy="40" r="34"
+                className="fill-none stroke-ui-accent [stroke-width:4] [stroke-linecap:round] transition-[stroke-dashoffset] duration-300"
+                cx="40"
+                cy="40"
+                r="34"
                 strokeDasharray={`${2 * Math.PI * 34}`}
                 strokeDashoffset={`${2 * Math.PI * 34 * (1 - percent / 100)}`}
               />
             </svg>
-            <span className="progress-ring-label" aria-hidden="true">{percent}%</span>
+            <span className="absolute inset-0 flex items-center justify-center font-geist-mono text-[0.68rem] font-bold text-ui-text-primary" aria-hidden="true">{percent}%</span>
           </div>
-          <div className="setup-overall-text">
-            <strong>{status?.message ?? "Checking runtime\u2026"}</strong>
-            <span className="setup-overall-bytes">
+          <div className="flex flex-1 flex-col gap-[0.15rem] text-[0.82rem]">
+            <strong>{status?.message ?? "Checking runtime..."}</strong>
+            <span className="font-geist-mono text-[0.72rem] text-ui-text-muted">
               {status?.bytesTotal
                 ? `${formatBytes(status.bytesCopied)} / ${formatBytes(status.bytesTotal)}`
                 : ""}
             </span>
           </div>
-          <span className={`phase-pill phase-${phase}`}>{phaseLabel(phase)}</span>
+          <span
+            className={cn(
+              "shrink-0 rounded-[3px] border border-ui-border px-[0.45rem] py-[0.2rem] font-geist-mono text-[0.58rem] font-semibold uppercase tracking-[0.1em]",
+              phase === "awaiting-input" && "bg-ui-phase-awaiting text-ui-warning",
+              phase === "running" && "bg-ui-phase-running text-ui-accent",
+              phase === "error" && "bg-ui-phase-error text-ui-error",
+              phase === "ready" && "bg-ui-phase-ready text-ui-success"
+            )}
+          >
+            {phaseLabel(phase)}
+          </span>
         </div>
       </section>
 
-      {/* Right: configuration */}
-      <section className="setup-config">
-        <div className="setup-config-header">
-          <p className="eyebrow">Runtime Setup</p>
-          <h2>{titleForPhase(phase)}</h2>
-        </div>
-
-        <div className="setup-fields">
-          <label className="setup-field">
-            <span className="setup-field-label">Install Path</span>
-            <input
-              value={installPath}
-              disabled={!canEditInstallPath}
-              onChange={(event) => onInstallPathChange(event.target.value)}
-              placeholder="/Users/you/Library/Application Support/Hisui/offline-runtime"
-            />
-            <div className="setup-install-actions">
-              <HisuiButton
-                variant="browse"
-                size="sm"
-                onClick={onBrowseInstallPath}
-                disabled={!canPickInstallPath}
-              >
-                Browse
-              </HisuiButton>
-              <HisuiButton
-                variant="ghost"
-                size="sm"
-                onClick={onUseDefaultInstallPath}
-                disabled={!canEditInstallPath || trimmedDefaultPath.length === 0 || usesDefaultPath}
-              >
-                Use Default
-              </HisuiButton>
-            </div>
-            {trimmedDefaultPath ? (
-              <p className="setup-default-path">
-                Default path: <code>{trimmedDefaultPath}</code>
-              </p>
-            ) : null}
-          </label>
-
-          <label className="setup-field">
-            <span className="setup-field-label">Kokoro Backend</span>
-            <select
-              value={kokoroBackend}
-              disabled={phase === "running"}
-              onChange={(event) => onBackendChange(event.target.value as KokoroBackendMode)}
-            >
-              <option value="auto">Auto (recommended)</option>
-              <option value="node-first">Node first</option>
-              <option value="node-fallback">Node fallback</option>
-              <option value="node">Node only</option>
-            </select>
-          </label>
-        </div>
-
-        {/* Model packs */}
-        <div className="setup-packs">
-          <div className="setup-packs-header">
-            <h3>Model Packs</h3>
-            <p>Select packs to install before startup.</p>
-          </div>
-
-          <div className="setup-pack-grid">
-            {packList.map((pack) => {
-              const checked = selectedPackIds.includes(pack.id) || pack.required;
-              return (
-                <article key={pack.id} className={`pack-card pack-card--${pack.state}`}>
-                  <label className="pack-card-main">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={phase === "running" || pack.required}
-                      onChange={() => onTogglePack(pack.id)}
-                    />
-                    <div className="pack-card-info">
-                      <h4>{pack.title}</h4>
-                      <p>{pack.description}</p>
-                    </div>
-                  </label>
-
-                  <div className="pack-card-meta">
-                    <span className="pack-chip">{pack.required ? "Required" : "Optional"}</span>
-                    <span className="pack-chip">{pack.source === "remote" ? "Download" : "Bundled"}</span>
-                    <span className="pack-chip">{formatBytes(pack.sizeBytes)}</span>
-                  </div>
-
-                  {pack.state === "downloading" || pack.state === "extracting" ? (
-                    <div className="pack-progress">
-                      <div className="progress-track" role="progressbar" aria-valuenow={pack.percent} aria-valuemin={0} aria-valuemax={100}>
-                        <div className="progress-fill" style={{ width: `${pack.percent}%` }} />
-                      </div>
-                      <p className="progress-meta">
-                        {pack.state === "extracting"
-                          ? "Extracting archive\u2026"
-                          : `${formatBytes(pack.downloadedBytes)} of ${formatBytes(pack.totalBytes || pack.sizeBytes)}`}
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {pack.state === "installed" ? (
-                    <p className="status-line">Installed</p>
-                  ) : null}
-
-                  {pack.error ? (
-                    <p className="error-text">{pack.error}</p>
-                  ) : null}
-                </article>
-              );
-            })}
-          </div>
-        </div>
-
-        {status?.error ? (
-          <div className="alert alert-error">
-            <span className="alert-icon" aria-hidden="true">!</span>
-            <p>{status.error}</p>
-          </div>
-        ) : null}
-
-        <div className="setup-action">
-          <HisuiButton variant="primary" size="lg" onClick={onStart} disabled={!canStart || !installPath.trim()}>
-            {status?.firstRun ? "Install & Start" : "Start Services"}
-          </HisuiButton>
-        </div>
-      </section>
+      <RuntimeSetupPanel
+        mode="onboarding"
+        status={status}
+        defaultInstallPath={defaultInstallPath}
+        installPath={installPath}
+        kokoroBackend={kokoroBackend}
+        selectedPackIds={selectedPackIds}
+        onInstallPathChange={onInstallPathChange}
+        onBrowseInstallPath={onBrowseInstallPath}
+        onUseDefaultInstallPath={onUseDefaultInstallPath}
+        onBackendChange={onBackendChange}
+        onTogglePack={onTogglePack}
+        onStart={onStart}
+      />
     </main>
   );
-}
-
-function titleForPhase(phase: BootstrapStatus["phase"]): string {
-  if (phase === "awaiting-input") return "Configure Runtime";
-  if (phase === "running") return "Installing";
-  if (phase === "error") return "Retry Setup";
-  return "Runtime Ready";
 }
 
 function phaseLabel(phase: BootstrapStatus["phase"]): string {

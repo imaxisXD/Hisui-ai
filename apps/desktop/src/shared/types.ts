@@ -6,6 +6,7 @@ export type KokoroBackendMode = "auto" | "node" | "node-first" | "node-fallback"
 export type AudioRuntimeMode = "node-core" | "python-expressive";
 export type ModelPackSource = "remote" | "bundled";
 export type ModelPackState = "not-installed" | "queued" | "downloading" | "extracting" | "installed" | "error";
+export type AppTheme = "hisui" | "folio";
 
 export interface ProjectSettings {
   speed: number;
@@ -48,6 +49,29 @@ export interface Project {
   chapters: Chapter[];
   speakers: SpeakerProfile[];
   settings: ProjectSettings;
+}
+
+export interface ProjectHistoryItem {
+  id: string;
+  title: string;
+  sourcePath: string;
+  sourceFormat: InputFormat;
+  createdAt: string;
+  updatedAt: string;
+  chapterCount: number;
+  segmentCount: number;
+  lastRenderAt?: string;
+  lastRenderState?: RenderState;
+  lastOutputMp3Path?: string;
+}
+
+export interface ProjectHistoryQuery {
+  limit?: number;
+}
+
+export interface ProjectHistoryDetails {
+  project: Project;
+  recentRenderJobs: RenderJob[];
 }
 
 export interface RenderMetrics {
@@ -214,6 +238,7 @@ export interface BootstrapStartInput {
 export interface BootstrapStatus {
   phase: BootstrapPhase;
   firstRun: boolean;
+  autoStartEnabled: boolean;
   defaultInstallPath: string;
   installPath: string;
   kokoroBackend: KokoroBackendMode;
@@ -266,4 +291,22 @@ export interface RuntimeResourceSettings {
 export interface UpdateRuntimeResourceSettingsInput {
   strictWakeOnly: boolean;
   idleStopMinutes: number;
+}
+
+export interface UiPreferences {
+  theme: AppTheme;
+  outputDir: string;
+  outputFileName: string;
+  speed: number;
+  enableLlmPrep: boolean;
+  selectedProjectHistoryId?: string;
+}
+
+export interface UpdateUiPreferencesInput {
+  theme?: AppTheme;
+  outputDir?: string;
+  outputFileName?: string;
+  speed?: number;
+  enableLlmPrep?: boolean;
+  selectedProjectHistoryId?: string | null;
 }

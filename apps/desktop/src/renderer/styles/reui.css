@@ -1,0 +1,259 @@
+@import "tailwindcss";
+
+/*
+ * reui.io theme bridge — maps Hisui/Folio CSS variables to reui's expected
+ * variable naming convention so Radix-based components render correctly in
+ * both dark and light themes without overriding the existing app.css.
+ */
+
+@custom-variant dark (&:is([data-theme="hisui"] *));
+@custom-variant hisui (&:is(.layout-hisui *));
+@custom-variant folio (&:is(.layout-folio *));
+
+:root {
+  /* ── Surface colors ── */
+  --background: var(--bg-primary);
+  --foreground: var(--text-primary);
+
+  --card: var(--bg-card);
+  --card-foreground: var(--text-primary);
+
+  --popover: var(--bg-card);
+  --popover-foreground: var(--text-primary);
+
+  --primary: var(--accent);
+  --primary-foreground: #ffffff;
+
+  --secondary: var(--bg-secondary);
+  --secondary-foreground: var(--text-primary);
+
+  --muted: var(--bg-surface);
+  --muted-foreground: var(--text-secondary);
+
+  /* reui uses --accent for neutral hover bg; Hisui's --accent is the purple
+     primary color. We map reui's accent to --bg-hover instead. */
+  --accent-reui: var(--bg-hover);
+  --accent-reui-foreground: var(--text-primary);
+
+  --destructive: var(--error);
+  --destructive-foreground: #ffffff;
+
+  --border-reui: var(--border);
+  --input-reui: var(--bg-input);
+  --ring: var(--focus-ring);
+
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  /* ── App fonts ── */
+  --font-geist-sans: "GeistSans", system-ui, -apple-system, sans-serif;
+  --font-geist-mono: "GeistMono", monospace;
+  --font-geist-pixel: "GeistPixelSquare", "GeistSans", monospace;
+  --font-geist-pixel-grid: "GeistPixelGrid", "GeistMono", monospace;
+
+  /* ── App palette tokens (Tailwind v4 CSS-first) ── */
+  --color-ui-body-bg: var(--body-bg);
+  --color-ui-bg-primary: var(--bg-primary);
+  --color-ui-bg-secondary: var(--bg-secondary);
+  --color-ui-bg-nav: var(--bg-nav);
+  --color-ui-bg-panel: var(--bg-panel);
+  --color-ui-bg-card: var(--bg-card);
+  --color-ui-bg-input: var(--bg-input);
+  --color-ui-bg-hover: var(--bg-hover);
+  --color-ui-bg-surface: var(--bg-surface);
+
+  --color-ui-text-primary: var(--text-primary);
+  --color-ui-text-secondary: var(--text-secondary);
+  --color-ui-text-muted: var(--text-muted);
+
+  --color-ui-accent: var(--accent);
+  --color-ui-accent-hover: var(--accent-hover);
+  --color-ui-accent-dim: var(--accent-dim);
+  --color-ui-accent-soft: var(--accent-soft);
+  --color-ui-accent-ghost-border: var(--accent-ghost-border);
+  --color-ui-accent-buffered: color-mix(in srgb, var(--accent) 18%, transparent);
+  --color-ui-accent-soft-focus: rgba(192, 132, 252, 0.08);
+  --color-ui-accent-soft-hover: rgba(192, 132, 252, 0.15);
+  --color-ui-accent-soft-active: rgba(192, 132, 252, 0.18);
+
+  --color-ui-border: var(--border);
+  --color-ui-border-strong: var(--border-strong);
+
+  --color-ui-success: var(--success);
+  --color-ui-success-soft-10: rgba(52, 211, 153, 0.1);
+  --color-ui-success-soft-8: rgba(52, 211, 153, 0.08);
+  --color-ui-success-soft-border: rgba(52, 211, 153, 0.35);
+  --color-ui-error: var(--error);
+  --color-ui-error-soft-10: rgba(248, 113, 113, 0.1);
+  --color-ui-error-border-strong: rgba(248, 113, 113, 0.3);
+  --color-ui-warning: var(--warning);
+  --color-ui-warning-soft: rgba(251, 191, 36, 0.08);
+  --color-ui-warning-soft-border: rgba(251, 191, 36, 0.35);
+
+  --color-ui-browse: var(--browse);
+  --color-ui-browse-hover: var(--browse-hover);
+  --color-ui-browse-dim: var(--browse-dim);
+  --color-ui-browse-soft: var(--browse-soft);
+  --color-ui-browse-border: var(--browse-border);
+  --color-ui-browse-soft-active: rgba(240, 184, 102, 0.25);
+
+  --color-ui-chip-bg: var(--chip-bg);
+  --color-ui-chip-border: var(--chip-border);
+
+  --color-ui-phase-awaiting: var(--phase-awaiting);
+  --color-ui-phase-running: var(--phase-running);
+  --color-ui-phase-error: var(--phase-error);
+  --color-ui-phase-ready: var(--phase-ready);
+  --color-ui-error-soft: rgba(248, 113, 113, 0.08);
+  --color-ui-error-soft-border: rgba(248, 113, 113, 0.2);
+  --color-ui-browse-soft-hover: rgba(240, 184, 102, 0.18);
+  --color-ui-frost-hover: rgba(255, 255, 255, 0.05);
+  --color-ui-frost-muted: rgba(255, 255, 255, 0.04);
+  --color-ui-frost-track: rgba(255, 255, 255, 0.06);
+  --color-ui-frost-track-strong: rgba(255, 255, 255, 0.08);
+  --color-ui-frost-border-soft: rgba(255, 255, 255, 0.25);
+  --color-ui-overlay-backdrop: rgba(0, 0, 0, 0.55);
+
+  --color-ui-format-epub: #60a5fa;
+  --color-ui-format-pdf: #f87171;
+  --color-ui-format-txt: #34d399;
+  --color-ui-format-epub-soft: rgba(96, 165, 250, 0.08);
+  --color-ui-format-txt-soft: rgba(52, 211, 153, 0.08);
+
+  --color-ui-preview-hisui-bg: #07070c;
+  --color-ui-preview-hisui-surface: #131320;
+  --color-ui-preview-hisui-accent: #c084fc;
+  --color-ui-preview-folio-bg: #f8f9fa;
+  --color-ui-preview-folio-surface: #e9ecef;
+  --color-ui-preview-folio-line: #dee2e6;
+  --color-ui-preview-folio-accent: #0891b2;
+
+  /* ── Semantic tokens for reui primitives ── */
+  --color-sem-success-base: var(--color-success, var(--color-green-500));
+  --color-sem-success-accent: var(--color-success-accent, var(--color-green-500));
+  --color-sem-success-foreground: var(--color-success-foreground, var(--color-white));
+  --color-sem-success-soft-50: var(--color-success-soft, var(--color-green-50));
+  --color-sem-success-soft-100: var(--color-success-soft, var(--color-green-100));
+  --color-sem-success-soft-200: var(--color-success-soft, var(--color-green-200));
+  --color-sem-success-soft-600: var(--color-success-soft, var(--color-green-600));
+  --color-sem-success-soft-700: var(--color-success-soft, var(--color-green-700));
+  --color-sem-success-soft-800: var(--color-success-soft, var(--color-green-800));
+  --color-sem-success-soft-900: var(--color-success-soft, var(--color-green-900));
+  --color-sem-success-soft-950: var(--color-success-soft, var(--color-green-950));
+  --color-sem-success-alpha-200: var(--color-success-alpha, var(--color-green-200));
+  --color-sem-success-alpha-900: var(--color-success-alpha, var(--color-green-900));
+
+  --color-sem-warning-base: var(--color-warning, var(--color-yellow-500));
+  --color-sem-warning-accent: var(--color-warning-accent, var(--color-yellow-500));
+  --color-sem-warning-foreground: var(--color-warning-foreground, var(--color-white));
+  --color-sem-warning-soft-50: var(--color-warning-soft, var(--color-yellow-50));
+  --color-sem-warning-soft-100: var(--color-warning-soft, var(--color-yellow-100));
+  --color-sem-warning-soft-200: var(--color-warning-soft, var(--color-yellow-200));
+  --color-sem-warning-soft-600: var(--color-warning-soft, var(--color-yellow-600));
+  --color-sem-warning-soft-700: var(--color-warning-soft, var(--color-yellow-700));
+  --color-sem-warning-soft-900: var(--color-warning-soft, var(--color-yellow-900));
+  --color-sem-warning-soft-950: var(--color-warning-soft, var(--color-yellow-950));
+  --color-sem-warning-alpha-200: var(--color-warning-alpha, var(--color-yellow-200));
+  --color-sem-warning-alpha-900: var(--color-warning-alpha, var(--color-yellow-900));
+
+  --color-sem-info-base: var(--color-info, var(--color-violet-600));
+  --color-sem-info-accent: var(--color-info-accent, var(--color-violet-500));
+  --color-sem-info-foreground: var(--color-info-foreground, var(--color-white));
+  --color-sem-info-soft-50: var(--color-info-soft, var(--color-violet-50));
+  --color-sem-info-soft-100: var(--color-info-soft, var(--color-violet-100));
+  --color-sem-info-soft-400: var(--color-info-soft, var(--color-violet-400));
+  --color-sem-info-soft-700: var(--color-info-soft, var(--color-violet-700));
+  --color-sem-info-soft-900: var(--color-info-soft, var(--color-violet-900));
+  --color-sem-info-soft-950: var(--color-info-soft, var(--color-violet-950));
+  --color-sem-info-alpha-100: var(--color-info-alpha, var(--color-violet-100));
+  --color-sem-info-alpha-900: var(--color-info-alpha, var(--color-violet-900));
+
+  --color-sem-primary-accent: var(--color-primary-accent, var(--color-blue-700));
+  --color-sem-primary-soft-50: var(--color-primary-soft, var(--color-blue-50));
+  --color-sem-primary-soft-100: var(--color-primary-soft, var(--color-blue-100));
+  --color-sem-primary-soft-600: var(--color-primary-soft, var(--color-blue-600));
+  --color-sem-primary-soft-900: var(--color-primary-soft, var(--color-blue-900));
+  --color-sem-primary-soft-950: var(--color-primary-soft, var(--color-blue-950));
+  --color-sem-primary-alpha-100: var(--color-primary-alpha, var(--color-blue-100));
+  --color-sem-primary-alpha-900: var(--color-primary-alpha, var(--color-blue-900));
+
+  --color-sem-destructive-accent: var(--color-destructive-accent, var(--color-red-700));
+  --color-sem-destructive-soft-50: var(--color-destructive-soft, var(--color-red-50));
+  --color-sem-destructive-soft-100: var(--color-destructive-soft, var(--color-red-100));
+  --color-sem-destructive-soft-600: var(--color-destructive-soft, var(--color-red-600));
+  --color-sem-destructive-soft-900: var(--color-destructive-soft, var(--color-red-900));
+  --color-sem-destructive-soft-950: var(--color-destructive-soft, var(--color-red-950));
+  --color-sem-destructive-alpha-100: var(--color-destructive-alpha, var(--color-red-100));
+  --color-sem-destructive-alpha-900: var(--color-destructive-alpha, var(--color-red-900));
+
+  /* ── App shadows/background images ── */
+  --shadow-ui-sm: var(--shadow-sm);
+  --shadow-ui-md: var(--shadow-md);
+  --shadow-ui-glow: var(--shadow-glow);
+  --shadow-ui-accent-edge: 0 2px 0 0 var(--accent-dim);
+  --shadow-ui-ghost-inset: inset 0 0 0 1px var(--accent-ghost-border);
+  --shadow-ui-browse-inset: inset 0 0 0 1px rgba(240, 184, 102, 0.15);
+  --shadow-ui-button-primary: 0 1px 0 0 rgba(0, 0, 0, 0.25), inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+  --shadow-ui-button-primary-active: 0 0 0 0 rgba(0, 0, 0, 0.25), inset 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-ui-input-icon: rgba(0, 0, 0, 0.05);
+  --shadow-ui-player-base: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-ui-player-primary: 0 2px 8px rgba(124, 58, 237, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  --shadow-ui-player-primary-hover: 0 3px 14px rgba(124, 58, 237, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  --shadow-ui-player-hover: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--accent-ghost-border);
+  --shadow-ui-player-progress-thumb: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent), 0 1px 4px rgba(0, 0, 0, 0.4);
+  --shadow-ui-player-volume-thumb: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+
+  --background-image-ui-progress: var(--progress-gradient);
+  --background-image-ui-button-sheen: linear-gradient(to bottom, transparent 60%, rgba(0, 0, 0, 0.3));
+  --background-image-ui-success-card: linear-gradient(180deg, rgba(52, 211, 153, 0.07), rgba(52, 211, 153, 0.01));
+  --background-image-ui-accent-glow: radial-gradient(ellipse at center, var(--accent-soft) 0%, transparent 70%);
+  --background-image-ui-browse-glow: radial-gradient(ellipse at center, var(--browse-soft) 0%, transparent 70%);
+  --background-image-ui-player-surface: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, transparent 50%), var(--bg-card);
+  --background-image-ui-player-fill: linear-gradient(90deg, var(--accent-dim), var(--accent), var(--accent-hover));
+  --background-image-ui-speed-track: linear-gradient(to right, var(--accent) 0%, var(--accent) var(--speed-fill, 50%), var(--border-strong) var(--speed-fill, 50%), var(--border-strong) 100%);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent-reui);
+  --color-accent-foreground: var(--accent-reui-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border-reui);
+  --color-input: var(--input-reui);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* ── Accordion animations ── */
+@keyframes accordion-down {
+  from { height: 0; }
+  to   { height: var(--radix-accordion-content-height); }
+}
+
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to   { height: 0; }
+}

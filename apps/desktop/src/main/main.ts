@@ -24,6 +24,7 @@ import { APP_PROTOCOL_SCHEME, registerAppProtocol } from "./security/appProtocol
 import { UpdaterService } from "./system/updaterService.js";
 import { DiagnosticsService } from "./system/diagnostics.js";
 import { RuntimeResourceSettingsService } from "./system/runtimeResourceSettingsService.js";
+import { UiPreferencesService } from "./system/uiPreferencesService.js";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -48,6 +49,7 @@ const bootstrap = new BootstrapManager(audioSidecar);
 const updater = new UpdaterService();
 const diagnostics = new DiagnosticsService();
 const runtimeResourceSettings = new RuntimeResourceSettingsService();
+const uiPreferences = new UiPreferencesService();
 
 crashReporter.start({
   productName: "Hisui",
@@ -190,6 +192,7 @@ async function createMainWindow(): Promise<void> {
       updater,
       diagnostics,
       runtimeResourceSettings,
+      uiPreferences,
       assertTrustedIpcSender
     });
     ipcReady = true;

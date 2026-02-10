@@ -19,7 +19,12 @@ import type {
   UpdateState,
   DiagnosticsSnapshot,
   RuntimeResourceSettings,
-  UpdateRuntimeResourceSettingsInput
+  UpdateRuntimeResourceSettingsInput,
+  ProjectHistoryDetails,
+  ProjectHistoryItem,
+  ProjectHistoryQuery,
+  UiPreferences,
+  UpdateUiPreferencesInput
 } from "./types.js";
 
 export const IPC_CHANNELS = {
@@ -47,7 +52,14 @@ export const IPC_CHANNELS = {
   getDiagnosticsSnapshot: "app:get-diagnostics-snapshot",
   readAudioFile: "app:read-audio-file",
   getRuntimeResourceSettings: "app:get-runtime-resource-settings",
-  updateRuntimeResourceSettings: "app:update-runtime-resource-settings"
+  updateRuntimeResourceSettings: "app:update-runtime-resource-settings",
+  listProjects: "app:list-projects",
+  getProject: "app:get-project",
+  listProjectRenderJobs: "app:list-project-render-jobs",
+  getProjectHistoryDetails: "app:get-project-history-details",
+  setBootstrapAutoStartEnabled: "app:set-bootstrap-auto-start-enabled",
+  getUiPreferences: "app:get-ui-preferences",
+  updateUiPreferences: "app:update-ui-preferences"
 } as const;
 
 export interface ReadAudioFileResult {
@@ -81,4 +93,11 @@ export interface DesktopApi {
   readAudioFile(path: string): Promise<ReadAudioFileResult>;
   getRuntimeResourceSettings(): Promise<RuntimeResourceSettings>;
   updateRuntimeResourceSettings(input: UpdateRuntimeResourceSettingsInput): Promise<RuntimeResourceSettings>;
+  listProjects(query?: ProjectHistoryQuery): Promise<ProjectHistoryItem[]>;
+  getProject(projectId: string): Promise<Project | null>;
+  listProjectRenderJobs(projectId: string, limit?: number): Promise<RenderJob[]>;
+  getProjectHistoryDetails(projectId: string, limit?: number): Promise<ProjectHistoryDetails | null>;
+  setBootstrapAutoStartEnabled(enabled: boolean): Promise<BootstrapStatus>;
+  getUiPreferences(): Promise<UiPreferences>;
+  updateUiPreferences(input: UpdateUiPreferencesInput): Promise<UiPreferences>;
 }

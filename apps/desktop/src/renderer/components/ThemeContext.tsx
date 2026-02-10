@@ -27,11 +27,39 @@ function readStoredTheme(): ThemeName {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeName>(readStoredTheme);
 
+  useEffect(() => {
+    const desktopApi = window.app;
+    if (!desktopApi) {
+      return;
+    }
+    void desktopApi.getUiPreferences()
+      .then((preferences) => {
+        const localTheme = readStoredTheme();
+        if (localTheme === "folio" && preferences.theme !== "folio") {
+          setThemeState(localTheme);
+          void desktopApi.updateUiPreferences({ theme: localTheme });
+          return;
+        }
+        if (preferences.theme === "hisui" || preferences.theme === "folio") {
+          setThemeState(preferences.theme);
+          try {
+            localStorage.setItem(STORAGE_KEY, preferences.theme);
+          } catch {}
+        }
+      })
+      .catch(() => {
+        // Keep local fallback if preference read fails.
+      });
+  }, []);
+
   const setTheme = (next: ThemeName) => {
     setThemeState(next);
     try {
       localStorage.setItem(STORAGE_KEY, next);
     } catch {}
+    if (window.app) {
+      void window.app.updateUiPreferences({ theme: next });
+    }
   };
 
   useEffect(() => {

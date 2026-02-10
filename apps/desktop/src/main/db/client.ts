@@ -26,3 +26,11 @@ export function getDb(): Database.Database {
   runMigrations(db);
   return db;
 }
+
+export function resetDbForTests(): void {
+  if (!db) {
+    return;
+  }
+  db.close();
+  db = null;
+}
