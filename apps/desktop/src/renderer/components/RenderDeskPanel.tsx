@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { RenderJob } from "../../shared/types";
 import { HisuiButton } from "./HisuiButton";
-import { buildRenderTargetPath, shouldConfirmOverwrite, toFileUrl } from "./renderDeskState";
+import { HisuiAudioPlayer } from "./HisuiAudioPlayer";
+import { buildRenderTargetPath, shouldConfirmOverwrite } from "./renderDeskState";
 
 interface RenderDeskPanelProps {
   projectTitle: string;
@@ -72,7 +73,9 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const activeAudioUrlRef = useRef<string | null>(null);
+  const activeAudioPathRef = useRef<string | null>(null);
+  const audioLoadTokenRef = useRef(0);
   const copyResetTimerRef = useRef<number | null>(null);
 
   const speedPercent = ((props.speed - 0.7) / (1.4 - 0.7)) * 100;
@@ -81,6 +84,21 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
     outputFileName: props.outputFileName,
     projectTitle: props.projectTitle
   });
+
+  const disposeAudioPlayer = () => {
+    audioLoadTokenRef.current += 1;
+    const activeAudioUrl = activeAudioUrlRef.current;
+    if (activeAudioUrl) {
+      URL.revokeObjectURL(activeAudioUrl);
+      activeAudioUrlRef.current = null;
+    }
+    activeAudioPathRef.current = null;
+  };
+
+  const resetAudioPlayer = () => {
+    disposeAudioPlayer();
+    setAudioSource("");
+  };
 
   useEffect(() => {
     setConfirmOverwrite(false);
@@ -91,7 +109,7 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
       setShowSuccessSettings(false);
       setConfirmOverwrite(false);
       setShowAudioPlayer(false);
-      setAudioSource("");
+      resetAudioPlayer();
     }
   }, [isComplete]);
 
@@ -100,6 +118,7 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
       if (copyResetTimerRef.current !== null) {
         window.clearTimeout(copyResetTimerRef.current);
       }
+      disposeAudioPlayer();
     };
   }, []);
 
@@ -110,7 +129,7 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
       setShowSuccessSettings(false);
       setConfirmOverwrite(false);
       setShowAudioPlayer(false);
-      setAudioSource("");
+      resetAudioPlayer();
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error));
     }
@@ -147,22 +166,46 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
       setActionError("Rendered file path is unavailable.");
       return;
     }
-
-    const source = toFileUrl(outputPath);
     setActionError(null);
     setShowAudioPlayer(true);
-    setAudioSource(source);
 
-    window.setTimeout(() => {
-      const audio = audioRef.current;
-      if (!audio) {
+    const shouldReloadAudio = activeAudioPathRef.current !== outputPath || !audioSource;
+    if (shouldReloadAudio) {
+      const previousAudioSource = activeAudioUrlRef.current;
+      if (previousAudioSource) {
+        URL.revokeObjectURL(previousAudioSource);
+        activeAudioUrlRef.current = null;
+      }
+      activeAudioPathRef.current = null;
+      setAudioSource("");
+
+      if (!window.app) {
+        setActionError("Desktop bridge unavailable. Relaunch via Electron and try again.");
         return;
       }
-      audio.currentTime = 0;
-      void audio.play().catch(() => {
+
+      const nextToken = audioLoadTokenRef.current + 1;
+      audioLoadTokenRef.current = nextToken;
+
+      try {
+        const result = await window.app.readAudioFile(outputPath);
+        if (audioLoadTokenRef.current !== nextToken) {
+          return;
+        }
+
+        const audioBytes = decodeBase64Audio(result.audioBase64);
+        const blob = new Blob([audioBytes], { type: result.mimeType || "audio/mpeg" });
+        const nextAudioSource = URL.createObjectURL(blob);
+
+        activeAudioUrlRef.current = nextAudioSource;
+        activeAudioPathRef.current = outputPath;
+        setAudioSource(nextAudioSource);
+        return;
+      } catch {
         setActionError("Could not play output. Make sure the rendered file still exists.");
-      });
-    }, 0);
+        return;
+      }
+    }
   };
 
   const handleRevealOutput = async () => {
@@ -304,12 +347,11 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
 
           {showAudioPlayer && audioSource ? (
             <div className="render-audio-wrap">
-              <audio
-                ref={audioRef}
-                controls
+              <HisuiAudioPlayer
                 src={audioSource}
-                preload="metadata"
+                autoPlay
                 onError={() => setActionError("Could not load output audio file.")}
+                onPlayError={() => setActionError("Could not play output. Make sure the rendered file still exists.")}
               />
             </div>
           ) : null}
@@ -523,4 +565,13 @@ function formatEta(totalSeconds: number): string {
   const minutes = Math.floor(safeSeconds / 60);
   const seconds = safeSeconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function decodeBase64Audio(base64: string): ArrayBuffer {
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
 }

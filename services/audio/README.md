@@ -45,5 +45,6 @@ python3 scripts/seed_offline_cache.py --models-dir ../../resources/models
 - `LOCAL_PODCAST_NODE_HF_CACHE`: cache root for Node Kokoro model assets.
 - `LOCAL_PODCAST_NODE_BIN`: Node runtime used for node backend (desktop defaults to Electron binary).
 - `LOCAL_PODCAST_NODE_BIN_FLAGS`: optional runtime flags (desktop defaults to `--run-as-node`).
+- `LOCAL_PODCAST_AUDIO_IDLE_MS`: idle timeout in milliseconds before desktop sidecar runtime is stopped (default `300000`; set `0` to disable).
 
 The desktop app starts this service automatically.

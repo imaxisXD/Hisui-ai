@@ -15,7 +15,11 @@ import type {
   TagValidationResult,
   UpdateSpeakersInput,
   UpdateSegmentsInput,
-  VoiceDefinition
+  VoiceDefinition,
+  UpdateState,
+  DiagnosticsSnapshot,
+  RuntimeResourceSettings,
+  UpdateRuntimeResourceSettingsInput
 } from "./types.js";
 
 export const IPC_CHANNELS = {
@@ -36,8 +40,20 @@ export const IPC_CHANNELS = {
   getDefaultRenderOutputDir: "app:get-default-render-output-dir",
   revealInFileManager: "app:reveal-in-file-manager",
   showOpenFileDialog: "app:show-open-file-dialog",
-  showOpenDirectoryDialog: "app:show-open-directory-dialog"
+  showOpenDirectoryDialog: "app:show-open-directory-dialog",
+  getUpdateState: "app:get-update-state",
+  checkForUpdates: "app:check-for-updates",
+  installDownloadedUpdate: "app:install-downloaded-update",
+  getDiagnosticsSnapshot: "app:get-diagnostics-snapshot",
+  readAudioFile: "app:read-audio-file",
+  getRuntimeResourceSettings: "app:get-runtime-resource-settings",
+  updateRuntimeResourceSettings: "app:update-runtime-resource-settings"
 } as const;
+
+export interface ReadAudioFileResult {
+  mimeType: string;
+  audioBase64: string;
+}
 
 export interface DesktopApi {
   getBootstrapStatus(): Promise<BootstrapStatus>;
@@ -58,4 +74,11 @@ export interface DesktopApi {
   revealInFileManager(path: string): Promise<void>;
   showOpenFileDialog(filters?: { name: string; extensions: string[] }[]): Promise<string | null>;
   showOpenDirectoryDialog(defaultPath?: string): Promise<string | null>;
+  getUpdateState(): Promise<UpdateState>;
+  checkForUpdates(): Promise<UpdateState>;
+  installDownloadedUpdate(): Promise<void>;
+  getDiagnosticsSnapshot(): Promise<DiagnosticsSnapshot>;
+  readAudioFile(path: string): Promise<ReadAudioFileResult>;
+  getRuntimeResourceSettings(): Promise<RuntimeResourceSettings>;
+  updateRuntimeResourceSettings(input: UpdateRuntimeResourceSettingsInput): Promise<RuntimeResourceSettings>;
 }

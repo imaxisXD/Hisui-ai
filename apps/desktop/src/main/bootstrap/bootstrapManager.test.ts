@@ -48,7 +48,8 @@ describe("BootstrapManager", () => {
 
   it("runs async setup and persists runtime config", async () => {
     const sidecar = {
-      start: vi.fn(async () => undefined)
+      start: vi.fn(async () => undefined),
+      setDefaultRuntimeConfig: vi.fn()
     };
 
     const { BootstrapManager } = await import("./bootstrapManager.js");
@@ -83,7 +84,10 @@ describe("BootstrapManager", () => {
     expect(copiedVoice.toString("utf-8")).toBe("voice");
     expect(ready.modelPacks.find((pack) => pack.id === "kokoro-core")?.state).toBe("installed");
 
-    const secondManager = new BootstrapManager({ start: vi.fn(async () => undefined) } as never);
+    const secondManager = new BootstrapManager({
+      start: vi.fn(async () => undefined),
+      setDefaultRuntimeConfig: vi.fn()
+    } as never);
     const resumed = await secondManager.getStatus();
     expect(resumed.phase).toBe("awaiting-input");
     expect(resumed.firstRun).toBe(false);
@@ -117,7 +121,10 @@ describe("BootstrapManager", () => {
     });
 
     try {
-      const sidecar = { start: vi.fn(async () => undefined) };
+      const sidecar = {
+        start: vi.fn(async () => undefined),
+        setDefaultRuntimeConfig: vi.fn()
+      };
       const { BootstrapManager } = await import("./bootstrapManager.js");
       const manager = new BootstrapManager(sidecar as never);
       const runtimePath = join(userDataPath, "runtime-remote");
@@ -143,7 +150,8 @@ describe("BootstrapManager", () => {
 
   it("starts expressive runtime mode when optional chatterbox pack is selected", async () => {
     const sidecar = {
-      start: vi.fn(async () => undefined)
+      start: vi.fn(async () => undefined),
+      setDefaultRuntimeConfig: vi.fn()
     };
 
     const { BootstrapManager } = await import("./bootstrapManager.js");

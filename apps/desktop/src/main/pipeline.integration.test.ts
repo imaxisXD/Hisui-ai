@@ -261,4 +261,60 @@ describe("import -> cast -> render integration", () => {
     expect(job.errorText).toContain("simulated tts failure");
     expect(existsSync(join(outputDir, `.render-${job.id}`))).toBe(false);
   });
+
+  it("forces CPU device override for Kokoro-only renders", async () => {
+    const project = buildProject({
+      title: "CPU Acceleration Fixture",
+      sourcePath: "(fixture)",
+      sourceFormat: "txt",
+      chapters: [
+        { title: "One", text: "Only Kokoro narration for this render path test." }
+      ],
+      speakers: [
+        {
+          id: "speaker-kokoro",
+          name: "Narrator",
+          ttsModel: "kokoro",
+          voiceId: "kokoro_narrator"
+        }
+      ]
+    });
+    repositoryMock.getProject.mockReturnValue(project);
+
+    const batchTtsMock = vi.fn(async (
+      _segments: TtsSegmentRequest[],
+      batchOutputDir: string,
+      _onProgress?: (progress: BatchTtsProgress) => void,
+      _runtimeOptions?: { kokoroNodeDevice?: "cpu" }
+    ) => {
+      await mkdir(batchOutputDir, { recursive: true });
+      const wavPath = join(batchOutputDir, "seg-00000-test.wav");
+      await writeFile(wavPath, Buffer.from("RIFF"));
+      return { wavPaths: [wavPath] };
+    });
+
+    const { RenderService } = await import("./render/renderService.js");
+    const service = new RenderService({
+      audioClient: {
+        batchTts: batchTtsMock
+      } as never,
+      llmPrepService: {
+        prepareText: vi.fn(async (text: string) => ({ originalText: text, preparedText: text, changed: false }))
+      } as never
+    });
+
+    const job = await service.renderProject(project.id, {
+      outputDir,
+      outputFileName: "fixture-cpu-accel",
+      speed: 1,
+      enableLlmPrep: false
+    });
+
+    expect(job.state).toBe("completed");
+    expect(batchTtsMock).toHaveBeenCalledTimes(1);
+    const runtimeOptions = (batchTtsMock.mock.calls[0] as unknown[] | undefined)?.[3];
+    expect(runtimeOptions).toEqual({
+      kokoroNodeDevice: "cpu"
+    });
+  });
 });

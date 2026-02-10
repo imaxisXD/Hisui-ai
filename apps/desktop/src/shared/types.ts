@@ -1,6 +1,7 @@
 export type InputFormat = "epub" | "txt" | "pdf";
 
 export type TtsModel = "kokoro" | "chatterbox";
+export type KokoroNodeDevice = "cpu";
 export type KokoroBackendMode = "auto" | "node" | "node-first" | "node-fallback";
 export type AudioRuntimeMode = "node-core" | "python-expressive";
 export type ModelPackSource = "remote" | "bundled";
@@ -223,4 +224,46 @@ export interface BootstrapStatus {
   bytesTotal: number;
   modelPacks: ModelPackStatus[];
   error?: string;
+}
+
+export type UpdatePhase = "idle" | "checking" | "available" | "downloading" | "downloaded" | "not-available" | "error" | "disabled";
+
+export interface UpdateState {
+  phase: UpdatePhase;
+  currentVersion: string;
+  availableVersion?: string;
+  releaseDate?: string;
+  downloadPercent?: number;
+  lastCheckedAt?: string;
+  message?: string;
+}
+
+export interface AppMetricSnapshot {
+  pid: number;
+  type: string;
+  cpuPercent: number;
+  idleWakeupsPerSecond: number;
+  workingSetSizeBytes: number;
+  peakWorkingSetSizeBytes: number;
+  privateMemoryBytes?: number;
+}
+
+export interface DiagnosticsSnapshot {
+  collectedAt: string;
+  appName: string;
+  appVersion: string;
+  crashDumpsPath: string;
+  recentCrashDumps: string[];
+  appMetrics: AppMetricSnapshot[];
+}
+
+export interface RuntimeResourceSettings {
+  strictWakeOnly: boolean;
+  idleStopMinutes: number;
+  promptPending: boolean;
+}
+
+export interface UpdateRuntimeResourceSettingsInput {
+  strictWakeOnly: boolean;
+  idleStopMinutes: number;
 }

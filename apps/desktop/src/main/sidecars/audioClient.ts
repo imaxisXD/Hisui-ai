@@ -1,4 +1,5 @@
 import type {
+  KokoroNodeDevice,
   LlmPrepResult,
   TagValidationResult,
   VoicePreviewInput,
@@ -24,12 +25,23 @@ export interface BatchTtsProgress {
   totalSegments: number;
 }
 
+export interface BatchTtsRuntimeOptions {
+  kokoroNodeDevice?: KokoroNodeDevice;
+}
+
+export interface AudioRuntimeCapabilities {
+  runtime: "node-core" | "python-expressive" | "unknown";
+  supportsKokoroDeviceOverride: boolean;
+  supportedKokoroDevices: KokoroNodeDevice[];
+}
+
 export interface RuntimeVoicePreviewResult {
   wavPath: string;
   engine?: string;
 }
 
 export interface AudioRuntimeClient {
+  getCapabilities(): Promise<AudioRuntimeCapabilities>;
   health(): Promise<{ running: boolean; modelStatus: string }>;
   listVoices(): Promise<VoiceDefinition[]>;
   previewVoice(input: VoicePreviewInput, outputDir: string): Promise<RuntimeVoicePreviewResult>;
@@ -37,7 +49,8 @@ export interface AudioRuntimeClient {
   batchTts(
     segments: TtsSegmentRequest[],
     outputDir: string,
-    onProgress?: (progress: BatchTtsProgress) => void
+    onProgress?: (progress: BatchTtsProgress) => void,
+    runtimeOptions?: BatchTtsRuntimeOptions
   ): Promise<BatchTtsResponse>;
 }
 
@@ -46,6 +59,14 @@ export class AudioClient implements AudioRuntimeClient {
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
+  }
+
+  async getCapabilities(): Promise<AudioRuntimeCapabilities> {
+    return {
+      runtime: "python-expressive",
+      supportsKokoroDeviceOverride: false,
+      supportedKokoroDevices: []
+    };
   }
 
   async health(): Promise<{ running: boolean; modelStatus: string }> {
@@ -112,7 +133,8 @@ export class AudioClient implements AudioRuntimeClient {
   async batchTts(
     segments: TtsSegmentRequest[],
     outputDir: string,
-    _onProgress?: (progress: BatchTtsProgress) => void
+    _onProgress?: (progress: BatchTtsProgress) => void,
+    _runtimeOptions?: BatchTtsRuntimeOptions
   ): Promise<BatchTtsResponse> {
     const response = await fetch(`${this.baseUrl}/batch-tts`, {
       method: "POST",

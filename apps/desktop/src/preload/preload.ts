@@ -18,7 +18,14 @@ const IPC_CHANNELS = {
   getDefaultRenderOutputDir: "app:get-default-render-output-dir",
   revealInFileManager: "app:reveal-in-file-manager",
   showOpenFileDialog: "app:show-open-file-dialog",
-  showOpenDirectoryDialog: "app:show-open-directory-dialog"
+  showOpenDirectoryDialog: "app:show-open-directory-dialog",
+  getUpdateState: "app:get-update-state",
+  checkForUpdates: "app:check-for-updates",
+  installDownloadedUpdate: "app:install-downloaded-update",
+  getDiagnosticsSnapshot: "app:get-diagnostics-snapshot",
+  readAudioFile: "app:read-audio-file",
+  getRuntimeResourceSettings: "app:get-runtime-resource-settings",
+  updateRuntimeResourceSettings: "app:update-runtime-resource-settings"
 } as const;
 
 const api: DesktopApi = {
@@ -78,6 +85,27 @@ const api: DesktopApi = {
   },
   showOpenDirectoryDialog(defaultPath?: Parameters<DesktopApi["showOpenDirectoryDialog"]>[0]) {
     return ipcRenderer.invoke(IPC_CHANNELS.showOpenDirectoryDialog, defaultPath);
+  },
+  getUpdateState() {
+    return ipcRenderer.invoke(IPC_CHANNELS.getUpdateState);
+  },
+  checkForUpdates() {
+    return ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates);
+  },
+  installDownloadedUpdate() {
+    return ipcRenderer.invoke(IPC_CHANNELS.installDownloadedUpdate);
+  },
+  getDiagnosticsSnapshot() {
+    return ipcRenderer.invoke(IPC_CHANNELS.getDiagnosticsSnapshot);
+  },
+  readAudioFile(path: Parameters<DesktopApi["readAudioFile"]>[0]) {
+    return ipcRenderer.invoke(IPC_CHANNELS.readAudioFile, path);
+  },
+  getRuntimeResourceSettings() {
+    return ipcRenderer.invoke(IPC_CHANNELS.getRuntimeResourceSettings);
+  },
+  updateRuntimeResourceSettings(input: Parameters<DesktopApi["updateRuntimeResourceSettings"]>[0]) {
+    return ipcRenderer.invoke(IPC_CHANNELS.updateRuntimeResourceSettings, input);
   }
 };
 

@@ -2272,12 +2272,221 @@ input[type="checkbox"] {
 }
 
 .render-audio-wrap {
-  padding-top: 0.15rem;
+  padding-top: 0.5rem;
 }
 
-.render-audio-wrap audio {
-  width: 100%;
-  height: 34px;
+/* ---- Hisui Audio Player ---- */
+.hisui-player {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, transparent 50%),
+    var(--bg-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.hisui-player:hover {
+  border-color: var(--accent-ghost-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 2px 12px rgba(0, 0, 0, 0.35),
+    0 0 0 1px var(--accent-ghost-border);
+}
+
+/* ---- Controls group: skip-back, play, skip-forward ---- */
+.hisui-player-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.hisui-player-btn {
+  display: grid;
+  place-items: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 150ms ease, background 150ms ease, transform 100ms ease;
+  padding: 0;
+}
+
+.hisui-player-btn:hover {
+  color: var(--text-primary);
+}
+
+.hisui-player-btn:active {
+  transform: scale(0.92);
+}
+
+.hisui-player-skip {
+  width: 28px;
+  height: 28px;
+}
+
+.hisui-player-skip:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Play / Pause button */
+.hisui-player-play {
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  color: #fff;
+  box-shadow:
+    0 2px 8px rgba(124, 58, 237, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: background 150ms ease, box-shadow 150ms ease, transform 100ms ease;
+}
+
+.hisui-player-play:hover {
+  background: var(--accent-hover);
+  color: #fff;
+  box-shadow:
+    0 3px 14px rgba(124, 58, 237, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.hisui-player-play:active {
+  transform: scale(0.92);
+}
+
+.hisui-player-play--loading {
+  opacity: 0.8;
+}
+
+.hisui-player-spinner {
+  animation: spin 800ms linear infinite;
+}
+
+/* ---- Timeline: time + progress bar + time ---- */
+.hisui-player-timeline {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.hisui-player-time {
+  font-family: "GeistMono", monospace;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  min-width: 3.2em;
+  text-align: center;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+/* Progress track */
+.hisui-player-progress {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.hisui-player-progress-buffered {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hisui-player-progress-filled {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent), var(--accent-hover));
+  pointer-events: none;
+  z-index: 2;
+}
+
+.hisui-player-progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-hover);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent),
+    0 1px 4px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 3;
+  transition: transform 150ms ease;
+}
+
+.hisui-player-progress:active .hisui-player-progress-thumb {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+/* ---- Volume ---- */
+.hisui-player-volume {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.hisui-player-mute {
+  width: 26px;
+  height: 26px;
+}
+
+.hisui-player-volume-track {
+  position: relative;
+  width: 64px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  cursor: pointer;
+  overflow: visible;
+}
+
+.hisui-player-volume-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hisui-player-volume-thumb {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-hover);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .render-config--summary {
@@ -2409,6 +2618,8 @@ input[type="checkbox"] {
 .render-metrics {
   display: flex;
   gap: 1.5rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
 }
 
 .render-metric {
@@ -2877,6 +3088,10 @@ input[type="checkbox"] {
   border-radius: 3px;
 }
 
+.progress-fill--error {
+  background: var(--error);
+}
+
 .progress-meta {
   margin: 0;
   font-size: 0.72rem;
@@ -2967,6 +3182,105 @@ input[type="checkbox"] {
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.1em;
+}
+
+.settings-subtle {
+  margin: 0.2rem 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.settings-inline-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.settings-inline-actions--runtime {
+  justify-content: space-between;
+}
+
+.settings-prompt-card {
+  margin-bottom: 0.7rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--accent-ghost-border);
+  background: var(--accent-soft);
+  border-radius: 6px;
+}
+
+.settings-prompt-card p {
+  margin: 0;
+}
+
+.settings-prompt-kicker {
+  margin-bottom: 0.3rem !important;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-family: "GeistMono", monospace;
+  color: var(--accent);
+}
+
+.settings-runtime-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  margin-bottom: 0.55rem;
+}
+
+.settings-runtime-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.settings-runtime-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-runtime-desc {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.settings-runtime-timeout {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.settings-runtime-timeout select {
+  min-width: 72px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border-radius: 4px;
+  padding: 0.3rem 0.45rem;
+}
+
+.settings-runtime-timeout--wide select {
+  min-width: 170px;
+}
+
+.settings-runtime-timeout span {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.settings-save-state {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-family: "GeistMono", monospace;
 }
 
 .theme-picker {
@@ -3246,5 +3560,14 @@ input[type="checkbox"] {
 
   .render-success-actions .hisui-btn {
     width: 100%;
+  }
+
+  .settings-runtime-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .settings-inline-actions--runtime {
+    align-items: flex-start;
   }
 }

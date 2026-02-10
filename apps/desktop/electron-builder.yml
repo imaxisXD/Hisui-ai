@@ -27,3 +27,14 @@ mac:
   category: public.app-category.productivity
 asar: true
 afterSign: scripts/notarize.cjs
+publish:
+  provider: github
+  owner: "${env.GH_RELEASE_OWNER}"
+  repo: "${env.GH_RELEASE_REPO}"
+  releaseType: release
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true

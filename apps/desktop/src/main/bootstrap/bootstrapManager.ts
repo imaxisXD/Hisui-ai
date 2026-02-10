@@ -205,6 +205,7 @@ export class BootstrapManager {
     }
 
     await this.refreshPackStatuses();
+    this.pushDefaultRuntimeConfig(this.resolveRuntimeModeFromInstalledPacks());
     this.refreshAwaitingMessage();
   }
 
@@ -374,6 +375,7 @@ export class BootstrapManager {
 
       const runtimeMode = determineRuntimeMode(selectedPackIds);
       let runtimeModeUsed: AudioRuntimeMode = runtimeMode;
+      this.pushDefaultRuntimeConfig(runtimeMode);
       logInfo("bootstrap", "starting runtime", {
         runtimeMode,
         modelsDir: targetModelsDir,
@@ -420,6 +422,7 @@ export class BootstrapManager {
           runtimeMode: "python-expressive"
         }), 120_000, "Timed out while starting fallback Python runtime.");
         runtimeModeUsed = "python-expressive";
+        this.pushDefaultRuntimeConfig(runtimeModeUsed);
         logInfo("bootstrap", "fallback runtime started", { runtimeModeUsed });
       }
 
@@ -434,6 +437,7 @@ export class BootstrapManager {
         installPath: input.installPath,
         kokoroBackend: input.kokoroBackend
       });
+      this.pushDefaultRuntimeConfig(runtimeModeUsed);
 
       const total = this.status.modelPacks
         .filter((pack) => selectedPackIds.includes(pack.id))
@@ -638,6 +642,22 @@ export class BootstrapManager {
   private async persistState(state: PersistedBootstrapState): Promise<void> {
     await mkdir(dirname(this.statePath), { recursive: true });
     await writeFile(this.statePath, JSON.stringify(state, null, 2), "utf-8");
+  }
+
+  private resolveRuntimeModeFromInstalledPacks(): AudioRuntimeMode {
+    const installedPackIds = this.status.modelPacks
+      .filter((pack) => pack.state === "installed")
+      .map((pack) => pack.id);
+    return determineRuntimeMode(installedPackIds);
+  }
+
+  private pushDefaultRuntimeConfig(runtimeMode: AudioRuntimeMode): void {
+    const modelsDir = join(this.status.installPath, "models");
+    this.audioSidecar.setDefaultRuntimeConfig({
+      modelsDir,
+      kokoroBackend: this.status.kokoroBackend,
+      runtimeMode
+    });
   }
 }
 

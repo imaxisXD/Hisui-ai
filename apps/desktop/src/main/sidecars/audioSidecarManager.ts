@@ -1,12 +1,19 @@
-import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { access, readdir } from "node:fs/promises";
 import { constants } from "node:fs";
-import { basename, dirname, join } from "node:path";
-import { AudioClient, type AudioRuntimeClient } from "./audioClient.js";
+import { basename, dirname, isAbsolute, join } from "node:path";
+import { AudioClient, type AudioRuntimeCapabilities, type AudioRuntimeClient } from "./audioClient.js";
 import { NodeKokoroClient } from "./nodeKokoroClient.js";
+import { KOKORO_VOICES } from "./nodeKokoroCore.js";
 import { getAudioServiceScriptPath, getKokoroNodeScriptPath, getModelsDir, getNodeModulesRoot } from "../utils/paths.js";
-import type { AudioRuntimeMode, KokoroBackendMode } from "../../shared/types.js";
+import type {
+  AudioRuntimeMode,
+  KokoroBackendMode,
+  TagValidationResult,
+  VoiceDefinition
+} from "../../shared/types.js";
 import { logDebug, logError, logInfo, logWarn } from "../utils/logging.js";
+import { validateExpressionTags } from "../render/expressionTags.js";
 
 export interface AudioSidecarStartOptions {
   modelsDir?: string;
@@ -14,25 +21,60 @@ export interface AudioSidecarStartOptions {
   runtimeMode?: AudioRuntimeMode;
 }
 
+export interface RuntimeResourcePolicy {
+  strictWakeOnly: boolean;
+  idleStopMs: number;
+}
+
 export class AudioSidecarManager {
   private process: ChildProcessWithoutNullStreams | null = null;
   private readonly port: number;
-  private activeConfig: { modelsDir: string; kokoroBackend: KokoroBackendMode; runtimeMode: AudioRuntimeMode } | null = null;
+  private activeConfig: RuntimeConfig | null = null;
+  private lastKnownConfig: RuntimeConfig | null = null;
   private readonly pythonClient: AudioClient;
   private activeRuntimeClient: AudioRuntimeClient;
   private lastSidecarStderr = "";
   private readonly runtimeGateway: AudioRuntimeClient;
+  private runtimeResourcePolicy: RuntimeResourcePolicy;
+  private idleStopMs: number;
+  private idleStopTimer: NodeJS.Timeout | null = null;
+  private activeClientRequests = 0;
 
   constructor(port = 43111) {
     this.port = port;
     this.pythonClient = new AudioClient(`http://127.0.0.1:${this.port}`);
     this.activeRuntimeClient = this.pythonClient;
+    this.runtimeResourcePolicy = {
+      strictWakeOnly: true,
+      idleStopMs: resolveIdleStopMs(process.env.LOCAL_PODCAST_AUDIO_IDLE_MS)
+    };
+    this.idleStopMs = this.runtimeResourcePolicy.idleStopMs;
     this.runtimeGateway = {
+      getCapabilities: async () => {
+        if (this.hasActiveRuntime()) {
+          return this.activeRuntimeClient.getCapabilities();
+        }
+        return this.getCapabilitiesForInactiveRuntime();
+      },
       health: () => this.activeRuntimeClient.health(),
-      listVoices: () => this.activeRuntimeClient.listVoices(),
-      previewVoice: (input, outputDir) => this.activeRuntimeClient.previewVoice(input, outputDir),
-      validateTags: (text: string) => this.activeRuntimeClient.validateTags(text),
-      batchTts: (segments, outputDir, onProgress) => this.activeRuntimeClient.batchTts(segments, outputDir, onProgress)
+      listVoices: () => this.withRuntimeUsage(
+        "listVoices",
+        (runtime) => runtime.listVoices(),
+        async () => this.getStaticVoicesForInactiveRuntime()
+      ),
+      previewVoice: (input, outputDir) => this.withRuntimeUsage(
+        "previewVoice",
+        (runtime) => runtime.previewVoice(input, outputDir)
+      ),
+      validateTags: (text: string) => this.withRuntimeUsage(
+        "validateTags",
+        (runtime) => runtime.validateTags(text),
+        async () => validateExpressionTags(text) as TagValidationResult
+      ),
+      batchTts: (segments, outputDir, onProgress, runtimeOptions) => this.withRuntimeUsage(
+        "batchTts",
+        (runtime) => runtime.batchTts(segments, outputDir, onProgress, runtimeOptions)
+      )
     };
   }
 
@@ -40,17 +82,44 @@ export class AudioSidecarManager {
     return this.runtimeGateway;
   }
 
+  setRuntimeResourcePolicy(policy: RuntimeResourcePolicy): void {
+    const nextPolicy: RuntimeResourcePolicy = {
+      strictWakeOnly: policy.strictWakeOnly !== false,
+      idleStopMs: normalizeIdleStopMs(policy.idleStopMs, this.idleStopMs)
+    };
+    this.runtimeResourcePolicy = nextPolicy;
+    this.idleStopMs = nextPolicy.idleStopMs;
+    logInfo("audio-sidecar", "runtime resource policy updated", {
+      strictWakeOnly: nextPolicy.strictWakeOnly,
+      idleStopMs: nextPolicy.idleStopMs
+    });
+
+    if (this.activeClientRequests > 0) {
+      this.clearIdleStopTimer();
+      return;
+    }
+    this.scheduleIdleStopIfNeeded("policy-updated");
+  }
+
+  setDefaultRuntimeConfig(options: AudioSidecarStartOptions = {}): void {
+    const config = this.resolveConfig(options);
+    this.lastKnownConfig = config;
+    logDebug("audio-sidecar", "default runtime config set", config);
+  }
+
   async start(options: AudioSidecarStartOptions = {}): Promise<void> {
     const config = this.resolveConfig(options);
+    this.lastKnownConfig = config;
+    this.clearIdleStopTimer();
     logInfo("audio-sidecar", "start requested", config);
 
-    if (this.process && this.activeConfig && isSameConfig(this.activeConfig, config)) {
+    if (this.activeConfig && isSameConfig(this.activeConfig, config) && this.isRuntimeActive(config.runtimeMode)) {
       logDebug("audio-sidecar", "start skipped (already running with same config)", config);
       return;
     }
 
-    if (this.process) {
-      logInfo("audio-sidecar", "stopping existing process before restart");
+    if (this.process || this.activeRuntimeClient !== this.pythonClient) {
+      logInfo("audio-sidecar", "stopping existing runtime before restart");
       await this.stop();
     }
 
@@ -64,18 +133,19 @@ export class AudioSidecarManager {
       this.activeConfig = config;
       await this.waitForHealth(5000);
       logInfo("audio-sidecar", "node-core runtime healthy");
+      this.scheduleIdleStopIfNeeded("runtime-started");
       return;
     }
 
     const script = getAudioServiceScriptPath();
     await access(script, constants.R_OK);
 
-    const pythonBinary = resolvePythonBinary(script);
+    const pythonBinary = await resolvePythonBinary(script);
     const hfHome = join(config.modelsDir, ".hf-cache");
     const offline = process.env.LOCAL_PODCAST_HF_OFFLINE ?? "1";
     const kokoroNodeScript = getKokoroNodeScriptPath();
     const kokoroNodeCache = join(config.modelsDir, "kokoro-node-cache");
-    const nodeBin = process.env.LOCAL_PODCAST_NODE_BIN?.trim() || resolvePreferredNodeBinary();
+    const nodeBin = process.env.LOCAL_PODCAST_NODE_BIN?.trim() || await resolvePreferredNodeBinary();
     const nodeFlags = resolveNodeFlags(nodeBin);
     logInfo("audio-sidecar", "spawning python sidecar", {
       pythonBinary,
@@ -134,18 +204,20 @@ export class AudioSidecarManager {
     logInfo("audio-sidecar", "python sidecar healthy", {
       runtimeMode: config.runtimeMode
     });
+    this.scheduleIdleStopIfNeeded("runtime-started");
   }
 
   async stop(): Promise<void> {
-    if (!this.process) {
-      this.activeConfig = null;
-      logDebug("audio-sidecar", "stop ignored (no running process)");
-      return;
+    this.clearIdleStopTimer();
+    if (this.process) {
+      logInfo("audio-sidecar", "stopping python sidecar process");
+      this.process.kill("SIGTERM");
+      this.process = null;
+    } else {
+      logDebug("audio-sidecar", "no python sidecar process to stop");
     }
 
-    logInfo("audio-sidecar", "stopping python sidecar process");
-    this.process.kill("SIGTERM");
-    this.process = null;
+    await this.releaseActiveRuntimeClient();
     this.activeConfig = null;
   }
 
@@ -202,12 +274,122 @@ export class AudioSidecarManager {
 
   private resolveConfig(
     options: AudioSidecarStartOptions
-  ): { modelsDir: string; kokoroBackend: KokoroBackendMode; runtimeMode: AudioRuntimeMode } {
+  ): RuntimeConfig {
     return {
       modelsDir: options.modelsDir ?? process.env.LOCAL_PODCAST_MODELS_DIR ?? getModelsDir(),
       kokoroBackend: options.kokoroBackend ?? (process.env.LOCAL_PODCAST_KOKORO_BACKEND as KokoroBackendMode | undefined) ?? "auto",
       runtimeMode: options.runtimeMode ?? "python-expressive"
     };
+  }
+
+  private clearIdleStopTimer(): void {
+    if (!this.idleStopTimer) {
+      return;
+    }
+    clearTimeout(this.idleStopTimer);
+    this.idleStopTimer = null;
+  }
+
+  private scheduleIdleStopIfNeeded(reason: string): void {
+    this.clearIdleStopTimer();
+    if (this.idleStopMs <= 0 || this.activeClientRequests > 0 || !this.activeConfig) {
+      return;
+    }
+    if (!this.isRuntimeActive(this.activeConfig.runtimeMode)) {
+      return;
+    }
+
+    this.idleStopTimer = setTimeout(() => {
+      this.idleStopTimer = null;
+      const config = this.activeConfig;
+      if (!config || this.activeClientRequests > 0) {
+        return;
+      }
+
+      logInfo("audio-sidecar", "idle timeout reached; stopping runtime", {
+        idleMs: this.idleStopMs,
+        runtimeMode: config.runtimeMode
+      });
+      void this.stop().catch((error) => {
+        logWarn("audio-sidecar", "idle runtime stop failed", { error });
+      });
+    }, this.idleStopMs);
+    this.idleStopTimer.unref?.();
+    logDebug("audio-sidecar", "idle stop timer armed", {
+      idleMs: this.idleStopMs,
+      reason,
+      runtimeMode: this.activeConfig.runtimeMode
+    });
+  }
+
+  private async withRuntimeUsage<T>(
+    wakeReason: WakeReason,
+    action: (runtime: AudioRuntimeClient) => Promise<T>,
+    fallbackWhenNoWake?: () => Promise<T>
+  ): Promise<T> {
+    this.activeClientRequests += 1;
+    this.clearIdleStopTimer();
+    try {
+      const wakeAllowed = this.canWakeRuntime(wakeReason);
+      const runtimeActive = this.hasActiveRuntime();
+      logDebug("audio-sidecar", "runtime request received", {
+        wakeReason,
+        wakeAllowed,
+        runtimeActive,
+        strictWakeOnly: this.runtimeResourcePolicy.strictWakeOnly
+      });
+      if (!wakeAllowed && !runtimeActive) {
+        logInfo("audio-sidecar", "runtime wake blocked by strict policy", {
+          wakeReason
+        });
+        if (fallbackWhenNoWake) {
+          return await fallbackWhenNoWake();
+        }
+        throw new Error(`Runtime wake blocked by strict policy for ${wakeReason}`);
+      }
+
+      await this.ensureRuntimeReadyForRequest({ allowWake: wakeAllowed, wakeReason });
+      return await action(this.activeRuntimeClient);
+    } finally {
+      this.activeClientRequests = Math.max(0, this.activeClientRequests - 1);
+      this.scheduleIdleStopIfNeeded("request-complete");
+    }
+  }
+
+  private async ensureRuntimeReadyForRequest(options: { allowWake: boolean; wakeReason: WakeReason }): Promise<void> {
+    const config = this.activeConfig ?? this.lastKnownConfig ?? this.resolveConfig({});
+    if (this.isRuntimeActive(config.runtimeMode)) {
+      return;
+    }
+
+    if (!options.allowWake) {
+      return;
+    }
+
+    logInfo("audio-sidecar", "runtime inactive for request; starting on demand", {
+      ...config,
+      wakeReason: options.wakeReason
+    });
+    await this.start(config);
+  }
+
+  private hasActiveRuntime(): boolean {
+    return this.process !== null || this.activeRuntimeClient !== this.pythonClient;
+  }
+
+  private canWakeRuntime(wakeReason: WakeReason): boolean {
+    if (!this.runtimeResourcePolicy.strictWakeOnly) {
+      return true;
+    }
+    return wakeReason === "previewVoice" || wakeReason === "batchTts";
+  }
+
+  private getStaticVoicesForInactiveRuntime(): VoiceDefinition[] {
+    const config = this.activeConfig ?? this.lastKnownConfig ?? this.resolveConfig({});
+    if (config.runtimeMode === "python-expressive") {
+      return [...KOKORO_VOICES, ...CHATTERBOX_VOICES].map((voice) => ({ ...voice }));
+    }
+    return [...KOKORO_VOICES].map((voice) => ({ ...voice }));
   }
 
   private async ensureNodeCacheReady(modelsDir: string): Promise<void> {
@@ -221,7 +403,7 @@ export class AudioSidecarManager {
     const seedScript = join(dirname(getKokoroNodeScriptPath()), "seed-model.mjs");
     await access(seedScript, constants.R_OK);
 
-    const nodeBin = process.env.LOCAL_PODCAST_NODE_BIN?.trim() || resolvePreferredNodeBinary();
+    const nodeBin = process.env.LOCAL_PODCAST_NODE_BIN?.trim() || await resolvePreferredNodeBinary();
     const nodeFlags = resolveNodeFlags(nodeBin);
     const args = [
       ...splitFlags(nodeFlags),
@@ -243,21 +425,69 @@ export class AudioSidecarManager {
     }, 90_000, "Kokoro node cache seed timed out. Check network access or pre-seed with `npm run seed:kokoro-node`.");
     logInfo("audio-sidecar", "node cache seed completed", { cacheDir });
   }
+
+  private isRuntimeActive(runtimeMode: AudioRuntimeMode): boolean {
+    if (runtimeMode === "node-core") {
+      return this.activeRuntimeClient !== this.pythonClient;
+    }
+    return this.process !== null;
+  }
+
+  private async releaseActiveRuntimeClient(): Promise<void> {
+    if (this.activeRuntimeClient === this.pythonClient) {
+      return;
+    }
+
+    const disposable = this.activeRuntimeClient as { dispose?: () => Promise<void> | void };
+    if (typeof disposable.dispose === "function") {
+      try {
+        await Promise.resolve(disposable.dispose());
+      } catch (error) {
+        logWarn("audio-sidecar", "runtime dispose failed", { error });
+      }
+    }
+    this.activeRuntimeClient = this.pythonClient;
+  }
+
+  private getCapabilitiesForInactiveRuntime(): AudioRuntimeCapabilities {
+    const mode = this.activeConfig?.runtimeMode ?? this.lastKnownConfig?.runtimeMode;
+    if (mode === "node-core") {
+      return {
+        runtime: "node-core",
+        supportsKokoroDeviceOverride: true,
+        supportedKokoroDevices: ["cpu"]
+      };
+    }
+    if (mode === "python-expressive") {
+      return {
+        runtime: "python-expressive",
+        supportsKokoroDeviceOverride: false,
+        supportedKokoroDevices: []
+      };
+    }
+    return {
+      runtime: "unknown",
+      supportsKokoroDeviceOverride: false,
+      supportedKokoroDevices: []
+    };
+  }
 }
 
-function resolvePythonBinary(audioServiceScriptPath: string): string {
+const commandExistsCache = new Map<string, Promise<boolean>>();
+
+async function resolvePythonBinary(audioServiceScriptPath: string): Promise<string> {
   const override = process.env.LOCAL_PODCAST_PYTHON_BIN;
-  if (override && commandExists(override)) {
+  if (override && await commandExists(override)) {
     return override;
   }
 
   const venvPython = join(dirname(audioServiceScriptPath), ".venv", "bin", "python");
-  if (commandExists(venvPython)) {
+  if (await commandExists(venvPython)) {
     return venvPython;
   }
 
   for (const candidate of ["python3.12", "python3.13", "python3.11", "python3"]) {
-    if (commandExists(candidate)) {
+    if (await commandExists(candidate)) {
       return candidate;
     }
   }
@@ -265,27 +495,96 @@ function resolvePythonBinary(audioServiceScriptPath: string): string {
   return "python3";
 }
 
-function commandExists(command: string): boolean {
-  const result = spawnSync(command, ["--version"], { stdio: "ignore" });
-  return result.status === 0;
+async function commandExists(command: string): Promise<boolean> {
+  const normalized = command.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  const cached = commandExistsCache.get(normalized);
+  if (cached) {
+    return cached;
+  }
+
+  const probe = (async () => {
+    if (isAbsolute(normalized) || normalized.includes("/")) {
+      try {
+        await access(normalized, constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    return await new Promise<boolean>((resolvePromise) => {
+      const child = spawn(normalized, ["--version"], { stdio: "ignore" });
+      child.once("error", () => resolvePromise(false));
+      child.once("exit", (code) => resolvePromise(code === 0));
+    });
+  })();
+
+  commandExistsCache.set(normalized, probe);
+  return probe;
 }
 
-function resolvePreferredNodeBinary(): string {
-  if (isElectronBinary(process.execPath) && commandExists("node")) {
+async function resolvePreferredNodeBinary(): Promise<string> {
+  if (isElectronBinary(process.execPath) && await commandExists("node")) {
     return "node";
   }
   return process.execPath;
 }
 
 function isSameConfig(
-  left: { modelsDir: string; kokoroBackend: KokoroBackendMode; runtimeMode: AudioRuntimeMode },
-  right: { modelsDir: string; kokoroBackend: KokoroBackendMode; runtimeMode: AudioRuntimeMode }
+  left: RuntimeConfig,
+  right: RuntimeConfig
 ): boolean {
   return (
     left.modelsDir === right.modelsDir
       && left.kokoroBackend === right.kokoroBackend
       && left.runtimeMode === right.runtimeMode
   );
+}
+
+interface RuntimeConfig {
+  modelsDir: string;
+  kokoroBackend: KokoroBackendMode;
+  runtimeMode: AudioRuntimeMode;
+}
+
+type WakeReason = "listVoices" | "validateTags" | "previewVoice" | "batchTts";
+
+const CHATTERBOX_VOICES: VoiceDefinition[] = [
+  {
+    id: "chatterbox_expressive",
+    model: "chatterbox",
+    label: "Chatterbox Expressive",
+    description: "Expression-heavy dialogue"
+  },
+  {
+    id: "chatterbox_studio",
+    model: "chatterbox",
+    label: "Chatterbox Studio",
+    description: "Balanced expressive studio voice"
+  }
+];
+
+function resolveIdleStopMs(value: string | undefined): number {
+  const fallback = 5 * 60_000;
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number(value.trim());
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return parsed > 0 ? Math.floor(parsed) : 0;
+}
+
+function normalizeIdleStopMs(value: number, fallback = 5 * 60_000): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  return value > 0 ? Math.floor(value) : 0;
 }
 
 function defaultNodeFlags(nodeBin: string): string {

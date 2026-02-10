@@ -2,12 +2,23 @@ import { constants } from "node:fs";
 import { access, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import type { Project, RenderJob, RenderMetrics, RenderOptions, RenderProgress } from "../../shared/types.js";
+import type {
+  Project,
+  RenderJob,
+  RenderMetrics,
+  RenderOptions,
+  RenderProgress
+} from "../../shared/types.js";
 import { sanitizeFileName } from "../../shared/fileName.js";
 import { getProject, upsertRenderJob } from "../db/projectRepository.js";
 import { createId } from "../utils/id.js";
 import { nowIso } from "../utils/time.js";
-import type { AudioRuntimeClient, BatchTtsProgress, TtsSegmentRequest } from "../sidecars/audioClient.js";
+import type {
+  AudioRuntimeClient,
+  BatchTtsProgress,
+  BatchTtsRuntimeOptions,
+  TtsSegmentRequest
+} from "../sidecars/audioClient.js";
 import { LlmPrepService } from "../sidecars/llmPrepService.js";
 import { getFfmpegPath } from "../utils/paths.js";
 import { logDebug, logError, logInfo, logWarn } from "../utils/logging.js";
@@ -19,6 +30,7 @@ interface RenderServiceOptions {
 
 const RENDER_WORK_DIR_PREFIX = ".render-";
 const RENDER_WORK_DIR_STALE_TTL_MS = 24 * 60 * 60 * 1000;
+const KOKORO_CPU_DEVICE = "cpu";
 
 export class RenderService {
   private readonly audioClient: AudioRuntimeClient;
@@ -60,8 +72,6 @@ export class RenderService {
     let workingDir = "";
     let latestPercent = 0;
     let latestPhase: RenderProgress["phase"] = "preparing";
-    let synthStartMs = 0;
-    let synthExactMode = false;
     const emitProgress = (next: {
       phase: RenderProgress["phase"];
       percent: number;
@@ -164,56 +174,106 @@ export class RenderService {
 
       const totalSynthSegments = ttsPayload.length;
       const estimatedSynthSeconds = estimateApproxSynthSeconds(baseSegments, options.speed);
-      synthStartMs = Date.now();
-      const synthApproxInterval = setInterval(() => {
-        if (synthExactMode) {
-          return;
-        }
-        const elapsedSeconds = (Date.now() - synthStartMs) / 1000;
-        const ratio = Math.min(elapsedSeconds / estimatedSynthSeconds, 0.98);
-        const completedSegments = totalSynthSegments > 0
-          ? Math.min(totalSynthSegments, Math.floor(ratio * totalSynthSegments))
-          : 0;
+      const runSynthesisPass = async (pass: {
+        label: string;
+        progressStart: number;
+        progressEnd: number;
+        outputDir: string;
+        runtimeOptions?: BatchTtsRuntimeOptions;
+      }): Promise<{
+        ttsResult: Awaited<ReturnType<AudioRuntimeClient["batchTts"]>>;
+        exactProgress: boolean;
+      }> => {
+        const passStartedAt = Date.now();
+        let exactProgress = false;
         emitProgress({
           phase: "synth",
-          percent: lerp(20, 92, ratio),
-          message: "Synthesizing audio...",
+          percent: pass.progressStart,
+          message: `${pass.label}...`,
           approximate: true,
-          etaSeconds: elapsedSeconds >= 8 ? Math.max(1, Math.round(estimatedSynthSeconds - elapsedSeconds)) : undefined,
-          completedSegments,
+          completedSegments: 0,
           totalSegments: totalSynthSegments || undefined
         });
-      }, 700);
 
-      const onSynthesisProgress = (progress: BatchTtsProgress) => {
-        const safeTotal = progress.totalSegments > 0 ? progress.totalSegments : totalSynthSegments;
-        const safeCompleted = Math.min(Math.max(progress.completedSegments, 0), safeTotal);
-        synthExactMode = true;
-        const elapsedSeconds = Math.max(1, (Date.now() - synthStartMs) / 1000);
-        emitProgress({
-          phase: "synth",
-          percent: lerp(20, 92, safeTotal > 0 ? safeCompleted / safeTotal : 1),
-          message: `Synthesizing audio (${safeCompleted}/${safeTotal})...`,
-          approximate: false,
-          etaSeconds: safeCompleted >= 3
-            ? estimateEtaSeconds(safeCompleted, safeTotal, elapsedSeconds)
-            : undefined,
-          completedSegments: safeCompleted,
-          totalSegments: safeTotal
-        });
+        const synthApproxInterval = setInterval(() => {
+          if (exactProgress) {
+            return;
+          }
+          const elapsedSeconds = (Date.now() - passStartedAt) / 1000;
+          const ratio = Math.min(elapsedSeconds / estimatedSynthSeconds, 0.98);
+          const completedSegments = totalSynthSegments > 0
+            ? Math.min(totalSynthSegments, Math.floor(ratio * totalSynthSegments))
+            : 0;
+          emitProgress({
+            phase: "synth",
+            percent: lerp(pass.progressStart, pass.progressEnd, ratio),
+            message: `${pass.label}...`,
+            approximate: true,
+            etaSeconds: elapsedSeconds >= 8 ? Math.max(1, Math.round(estimatedSynthSeconds - elapsedSeconds)) : undefined,
+            completedSegments,
+            totalSegments: totalSynthSegments || undefined
+          });
+        }, 700);
+
+        const onSynthesisProgress = (progress: BatchTtsProgress) => {
+          const safeTotal = progress.totalSegments > 0 ? progress.totalSegments : totalSynthSegments;
+          const safeCompleted = Math.min(Math.max(progress.completedSegments, 0), safeTotal);
+          exactProgress = true;
+          const elapsedSeconds = Math.max(1, (Date.now() - passStartedAt) / 1000);
+          emitProgress({
+            phase: "synth",
+            percent: lerp(pass.progressStart, pass.progressEnd, safeTotal > 0 ? safeCompleted / safeTotal : 1),
+            message: `${pass.label} (${safeCompleted}/${safeTotal})...`,
+            approximate: false,
+            etaSeconds: safeCompleted >= 3
+              ? estimateEtaSeconds(safeCompleted, safeTotal, elapsedSeconds)
+              : undefined,
+            completedSegments: safeCompleted,
+            totalSegments: safeTotal
+          });
+        };
+
+        try {
+          const ttsResult = await this.audioClient.batchTts(
+            ttsPayload,
+            pass.outputDir,
+            onSynthesisProgress,
+            pass.runtimeOptions
+          );
+          return {
+            ttsResult,
+            exactProgress
+          };
+        } finally {
+          clearInterval(synthApproxInterval);
+        }
       };
 
-      let ttsResult: Awaited<ReturnType<AudioRuntimeClient["batchTts"]>>;
-      try {
-        ttsResult = await this.audioClient.batchTts(ttsPayload, workingDir, onSynthesisProgress);
-      } finally {
-        clearInterval(synthApproxInterval);
+      const kokoroOnlyPayload = ttsPayload.every((segment) => segment.model === "kokoro");
+      const synthRuntimeOptions: BatchTtsRuntimeOptions | undefined = kokoroOnlyPayload
+        ? { kokoroNodeDevice: KOKORO_CPU_DEVICE }
+        : undefined;
+
+      if (kokoroOnlyPayload) {
+        logInfo("render", "kokoro cpu override enabled", {
+          jobId: job.id,
+          device: KOKORO_CPU_DEVICE
+        });
       }
+
+      const synthPass = await runSynthesisPass({
+        label: "Synthesizing audio",
+        progressStart: 20,
+        progressEnd: 92,
+        outputDir: workingDir,
+        runtimeOptions: synthRuntimeOptions
+      });
+      const ttsResult = synthPass.ttsResult;
       emitProgress({
         phase: "synth",
         percent: 92,
-        message: "Audio synthesis complete.",
-        approximate: !synthExactMode,
+        message: kokoroOnlyPayload ? "Audio synthesis complete (CPU mode)." : "Audio synthesis complete.",
+        approximate: !synthPass.exactProgress,
         completedSegments: totalSynthSegments,
         totalSegments: totalSynthSegments
       });
