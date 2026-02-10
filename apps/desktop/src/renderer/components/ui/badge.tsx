@@ -11,10 +11,10 @@ const badgeVariants = cva(
         primary: 'bg-primary text-primary-foreground',
         secondary: 'bg-secondary text-secondary-foreground',
         success:
-          'bg-[var(--color-success-accent,var(--color-green-500))] text-[var(--color-success-foreground,var(--color-white))]',
+          'bg-sem-success-accent text-sem-success-foreground',
         warning:
-          'bg-[var(--color-warning-accent,var(--color-yellow-500))] text-[var(--color-warning-foreground,var(--color-white))]',
-        info: 'bg-[var(--color-info-accent,var(--color-violet-500))] text-[var(--color-info-foreground,var(--color-white))]',
+          'bg-sem-warning-accent text-sem-warning-foreground',
+        info: 'bg-sem-info-accent text-sem-info-foreground',
         outline: 'bg-transparent border border-border text-secondary-foreground',
         destructive: 'bg-destructive text-destructive-foreground',
       },
@@ -43,7 +43,7 @@ const badgeVariants = cva(
         variant: 'primary',
         appearance: 'light',
         className:
-          'text-[var(--color-primary-accent,var(--color-blue-700))] bg-[var(--color-primary-soft,var(--color-blue-50))] dark:bg-[var(--color-primary-soft,var(--color-blue-950))] dark:text-[var(--color-primary-soft,var(--color-blue-600))]',
+          'text-sem-primary-accent bg-sem-primary-soft-50 dark:bg-sem-primary-soft-950 dark:text-sem-primary-soft-600',
       },
       {
         variant: 'secondary',
@@ -54,55 +54,55 @@ const badgeVariants = cva(
         variant: 'success',
         appearance: 'light',
         className:
-          'text-[var(--color-success-accent,var(--color-green-800))] bg-[var(--color-success-soft,var(--color-green-100))] dark:bg-[var(--color-success-soft,var(--color-green-950))] dark:text-[var(--color-success-soft,var(--color-green-600))]',
+          'text-sem-success-soft-800 bg-sem-success-soft-100 dark:bg-sem-success-soft-950 dark:text-sem-success-soft-600',
       },
       {
         variant: 'warning',
         appearance: 'light',
         className:
-          'text-[var(--color-warning-accent,var(--color-yellow-700))] bg-[var(--color-warning-soft,var(--color-yellow-100))] dark:bg-[var(--color-warning-soft,var(--color-yellow-950))] dark:text-[var(--color-warning-soft,var(--color-yellow-600))]',
+          'text-sem-warning-soft-700 bg-sem-warning-soft-100 dark:bg-sem-warning-soft-950 dark:text-sem-warning-soft-600',
       },
       {
         variant: 'info',
         appearance: 'light',
         className:
-          'text-[var(--color-info-accent,var(--color-violet-700))] bg-[var(--color-info-soft,var(--color-violet-100))] dark:bg-[var(--color-info-soft,var(--color-violet-950))] dark:text-[var(--color-info-soft,var(--color-violet-400))]',
+          'text-sem-info-soft-700 bg-sem-info-soft-100 dark:bg-sem-info-soft-950 dark:text-sem-info-soft-400',
       },
       {
         variant: 'destructive',
         appearance: 'light',
         className:
-          'text-[var(--color-destructive-accent,var(--color-red-700))] bg-[var(--color-destructive-soft,var(--color-red-50))] dark:bg-[var(--color-destructive-soft,var(--color-red-950))] dark:text-[var(--color-destructive-soft,var(--color-red-600))]',
+          'text-sem-destructive-accent bg-sem-destructive-soft-50 dark:bg-sem-destructive-soft-950 dark:text-sem-destructive-soft-600',
       },
       {
         variant: 'primary',
         appearance: 'outline',
         className:
-          'text-[var(--color-primary-accent,var(--color-blue-700))] border-[var(--color-primary-soft,var(--color-blue-100))] bg-[var(--color-primary-soft,var(--color-blue-50))] dark:bg-[var(--color-primary-soft,var(--color-blue-950))] dark:border-[var(--color-primary-soft,var(--color-blue-900))] dark:text-[var(--color-primary-soft,var(--color-blue-600))]',
+          'text-sem-primary-accent border-sem-primary-soft-100 bg-sem-primary-soft-50 dark:bg-sem-primary-soft-950 dark:border-sem-primary-soft-900 dark:text-sem-primary-soft-600',
       },
       {
         variant: 'success',
         appearance: 'outline',
         className:
-          'text-[var(--color-success-accent,var(--color-green-700))] border-[var(--color-success-soft,var(--color-green-200))] bg-[var(--color-success-soft,var(--color-green-50))] dark:bg-[var(--color-success-soft,var(--color-green-950))] dark:border-[var(--color-success-soft,var(--color-green-900))] dark:text-[var(--color-success-soft,var(--color-green-600))]',
+          'text-sem-success-soft-700 border-sem-success-soft-200 bg-sem-success-soft-50 dark:bg-sem-success-soft-950 dark:border-sem-success-soft-900 dark:text-sem-success-soft-600',
       },
       {
         variant: 'warning',
         appearance: 'outline',
         className:
-          'text-[var(--color-warning-accent,var(--color-yellow-700))] border-[var(--color-warning-soft,var(--color-yellow-200))] bg-[var(--color-warning-soft,var(--color-yellow-50))] dark:bg-[var(--color-warning-soft,var(--color-yellow-950))] dark:border-[var(--color-warning-soft,var(--color-yellow-900))] dark:text-[var(--color-warning-soft,var(--color-yellow-600))]',
+          'text-sem-warning-soft-700 border-sem-warning-soft-200 bg-sem-warning-soft-50 dark:bg-sem-warning-soft-950 dark:border-sem-warning-soft-900 dark:text-sem-warning-soft-600',
       },
       {
         variant: 'info',
         appearance: 'outline',
         className:
-          'text-[var(--color-info-accent,var(--color-violet-700))] border-[var(--color-info-soft,var(--color-violet-100))] bg-[var(--color-info-soft,var(--color-violet-50))] dark:bg-[var(--color-info-soft,var(--color-violet-950))] dark:border-[var(--color-info-soft,var(--color-violet-900))] dark:text-[var(--color-info-soft,var(--color-violet-400))]',
+          'text-sem-info-soft-700 border-sem-info-soft-100 bg-sem-info-soft-50 dark:bg-sem-info-soft-950 dark:border-sem-info-soft-900 dark:text-sem-info-soft-400',
       },
       {
         variant: 'destructive',
         appearance: 'outline',
         className:
-          'text-[var(--color-destructive-accent,var(--color-red-700))] border-[var(--color-destructive-soft,var(--color-red-100))] bg-[var(--color-destructive-soft,var(--color-red-50))] dark:bg-[var(--color-destructive-soft,var(--color-red-950))] dark:border-[var(--color-destructive-soft,var(--color-red-900))] dark:text-[var(--color-destructive-soft,var(--color-red-600))]',
+          'text-sem-destructive-accent border-sem-destructive-soft-100 bg-sem-destructive-soft-50 dark:bg-sem-destructive-soft-950 dark:border-sem-destructive-soft-900 dark:text-sem-destructive-soft-600',
       },
       {
         variant: 'primary',
@@ -117,17 +117,17 @@ const badgeVariants = cva(
       {
         variant: 'success',
         appearance: 'ghost',
-        className: 'text-[var(--color-success-accent,var(--color-green-500))]',
+        className: 'text-sem-success-accent',
       },
       {
         variant: 'warning',
         appearance: 'ghost',
-        className: 'text-[var(--color-warning-accent,var(--color-yellow-500))]',
+        className: 'text-sem-warning-accent',
       },
       {
         variant: 'info',
         appearance: 'ghost',
-        className: 'text-[var(--color-info-accent,var(--color-violet-500))]',
+        className: 'text-sem-info-accent',
       },
       {
         variant: 'destructive',

@@ -1,3 +1,4 @@
+import { cn } from "../lib/utils";
 import type { BootstrapStatus, KokoroBackendMode } from "../../shared/types";
 import { HisuiButton } from "./HisuiButton";
 
@@ -15,6 +16,10 @@ interface RuntimeSetupPanelProps {
   onStart: () => void;
   mode?: "onboarding" | "settings";
 }
+
+const eyebrowClass = "text-[0.65rem] font-geist-mono uppercase tracking-[0.12em] text-ui-text-muted";
+const fieldLabelClass = "font-geist-mono text-[0.65rem] uppercase tracking-[0.1em] text-ui-text-muted";
+const fieldClass = "w-full rounded border border-ui-border-strong bg-ui-bg-input px-[0.7rem] py-[0.5rem] text-[0.85rem] text-ui-text-primary transition-[border-color,box-shadow] duration-150 focus:border-ui-accent focus:outline-none focus:ring-[3px] focus:ring-ui-accent-soft";
 
 export function RuntimeSetupPanel({
   status,
@@ -45,22 +50,30 @@ export function RuntimeSetupPanel({
       : "Start Services";
 
   return (
-    <section className={mode === "onboarding" ? "setup-config" : "runtime-setup-panel"}>
-      <div className="setup-config-header">
-        <p className="eyebrow">Runtime Setup</p>
-        <h2>{titleForPhase(phase)}</h2>
+    <section
+      className={cn(
+        "flex flex-col gap-5",
+        mode === "onboarding"
+          ? "rounded-lg border border-ui-border bg-ui-bg-panel p-6 animate-[staggerReveal_600ms_cubic-bezier(0.16,1,0.3,1)] [animation-delay:80ms] [animation-fill-mode:both]"
+          : "mt-3 border-t border-ui-border pt-3"
+      )}
+    >
+      <div className="flex flex-col gap-1">
+        <p className={eyebrowClass}>Runtime Setup</p>
+        <h2 className={cn("m-0", mode === "settings" ? "text-[1rem]" : "text-[1.15rem]")}>{titleForPhase(phase)}</h2>
       </div>
 
-      <div className="setup-fields">
-        <label className="setup-field">
-          <span className="setup-field-label">Install Path</span>
+      <div className="flex flex-col gap-3">
+        <label className="flex flex-col gap-1">
+          <span className={fieldLabelClass}>Install Path</span>
           <input
+            className={cn(fieldClass, mode === "settings" && "min-h-9")}
             value={installPath}
             disabled={!canEditInstallPath}
             onChange={(event) => onInstallPathChange(event.target.value)}
             placeholder="/Users/you/Library/Application Support/Hisui/offline-runtime"
           />
-          <div className="setup-install-actions">
+          <div className="flex flex-wrap gap-2">
             <HisuiButton
               variant="browse"
               size="sm"
@@ -79,15 +92,16 @@ export function RuntimeSetupPanel({
             </HisuiButton>
           </div>
           {trimmedDefaultPath ? (
-            <p className="setup-default-path">
+            <p className="m-0 break-words font-geist-mono text-[0.68rem] leading-[1.45] text-ui-text-muted">
               Default path: <code>{trimmedDefaultPath}</code>
             </p>
           ) : null}
         </label>
 
-        <label className="setup-field">
-          <span className="setup-field-label">Kokoro Backend</span>
+        <label className="flex flex-col gap-1">
+          <span className={fieldLabelClass}>Kokoro Backend</span>
           <select
+            className={cn(fieldClass, mode === "settings" && "min-h-9")}
             value={kokoroBackend}
             disabled={phase === "running"}
             onChange={(event) => onBackendChange(event.target.value as KokoroBackendMode)}
@@ -100,42 +114,43 @@ export function RuntimeSetupPanel({
         </label>
       </div>
 
-      <div className="setup-packs">
-        <div className="setup-packs-header">
-          <h3>Model Packs</h3>
-          <p>Select packs to install before startup.</p>
+      <div className="flex flex-col gap-[0.65rem]">
+        <div>
+          <h3 className="m-0 text-[0.95rem]">Model Packs</h3>
+          <p className="mt-[0.15rem] text-[0.82rem] text-ui-text-secondary">Select packs to install before startup.</p>
         </div>
 
-        <div className="setup-pack-grid">
+        <div className="flex flex-col gap-2">
           {packList.map((pack) => {
             const checked = selectedPackIds.includes(pack.id) || pack.required;
             return (
-              <article key={pack.id} className={`pack-card pack-card--${pack.state}`}>
-                <label className="pack-card-main">
+              <article key={pack.id} className="flex flex-col gap-[0.45rem] rounded-[5px] border border-ui-border bg-ui-bg-card p-[0.85rem]">
+                <label className="flex cursor-pointer items-start gap-[0.6rem]">
                   <input
+                    className="mt-[3px] w-auto accent-ui-accent"
                     type="checkbox"
                     checked={checked}
                     disabled={phase === "running" || pack.required}
                     onChange={() => onTogglePack(pack.id)}
                   />
-                  <div className="pack-card-info">
-                    <h4>{pack.title}</h4>
-                    <p>{pack.description}</p>
+                  <div>
+                    <h4 className="m-0 font-geist-sans text-[0.88rem] font-semibold">{pack.title}</h4>
+                    <p className="mt-[0.1rem] text-[0.78rem] text-ui-text-secondary">{pack.description}</p>
                   </div>
                 </label>
 
-                <div className="pack-card-meta">
-                  <span className="pack-chip">{pack.required ? "Required" : "Optional"}</span>
-                  <span className="pack-chip">{pack.source === "remote" ? "Download" : "Bundled"}</span>
-                  <span className="pack-chip">{formatBytes(pack.sizeBytes)}</span>
+                <div className="ml-[1.35rem] flex flex-wrap gap-[0.3rem]">
+                  <span className="rounded-[2px] border border-ui-chip-border bg-ui-chip-bg px-[0.35rem] py-[0.1rem] font-geist-mono text-[0.62rem] uppercase tracking-[0.06em] text-ui-accent">{pack.required ? "Required" : "Optional"}</span>
+                  <span className="rounded-[2px] border border-ui-chip-border bg-ui-chip-bg px-[0.35rem] py-[0.1rem] font-geist-mono text-[0.62rem] uppercase tracking-[0.06em] text-ui-accent">{pack.source === "remote" ? "Download" : "Bundled"}</span>
+                  <span className="rounded-[2px] border border-ui-chip-border bg-ui-chip-bg px-[0.35rem] py-[0.1rem] font-geist-mono text-[0.62rem] uppercase tracking-[0.06em] text-ui-accent">{formatBytes(pack.sizeBytes)}</span>
                 </div>
 
                 {pack.state === "downloading" || pack.state === "extracting" ? (
-                  <div className="pack-progress">
-                    <div className="progress-track" role="progressbar" aria-valuenow={pack.percent} aria-valuemin={0} aria-valuemax={100}>
-                      <div className="progress-fill" style={{ width: `${pack.percent}%` }} />
+                  <div className="ml-[1.35rem] flex flex-col gap-[0.3rem]">
+                    <div className="h-[6px] w-full overflow-hidden rounded-[3px] border border-ui-border bg-ui-bg-input" role="progressbar" aria-valuenow={pack.percent} aria-valuemin={0} aria-valuemax={100}>
+                      <div className="h-full rounded-[3px] bg-ui-progress transition-[width] duration-250" style={{ width: `${pack.percent}%` }} />
                     </div>
-                    <p className="progress-meta">
+                    <p className="m-0 font-geist-mono text-[0.72rem] text-ui-text-muted">
                       {pack.state === "extracting"
                         ? "Extracting archive..."
                         : `${formatBytes(pack.downloadedBytes)} of ${formatBytes(pack.totalBytes || pack.sizeBytes)}`}
@@ -144,11 +159,11 @@ export function RuntimeSetupPanel({
                 ) : null}
 
                 {pack.state === "installed" ? (
-                  <p className="status-line">Installed</p>
+                  <p className="mt-[0.4rem] font-geist-mono text-[0.78rem] text-ui-success">Installed</p>
                 ) : null}
 
                 {pack.error ? (
-                  <p className="error-text">{pack.error}</p>
+                  <p className="text-[0.82rem] font-semibold text-ui-error">{pack.error}</p>
                 ) : null}
               </article>
             );
@@ -157,13 +172,13 @@ export function RuntimeSetupPanel({
       </div>
 
       {status?.error ? (
-        <div className="alert alert-error">
-          <span className="alert-icon" aria-hidden="true">!</span>
-          <p>{status.error}</p>
+        <div className="mt-3 flex items-start gap-2 rounded border border-ui-error-soft-border bg-ui-error-soft px-[0.85rem] py-[0.65rem] text-[0.82rem] text-ui-error">
+          <span className="mt-px inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-ui-error text-[0.65rem] font-bold text-white" aria-hidden="true">!</span>
+          <p className="m-0">{status.error}</p>
         </div>
       ) : null}
 
-      <div className="setup-action">
+      <div className="pt-2">
         <HisuiButton variant="primary" size="lg" onClick={onStart} disabled={!canStart || !installPath.trim()}>
           {startLabel}
         </HisuiButton>

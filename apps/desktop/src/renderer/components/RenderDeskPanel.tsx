@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { cn } from "../lib/utils";
 import type { RenderJob } from "../../shared/types";
 import { HisuiButton } from "./HisuiButton";
 import { HisuiAudioPlayer } from "./HisuiAudioPlayer";
@@ -59,6 +60,9 @@ const SpeedIcon = (
 );
 
 type CopyStatus = "idle" | "copied" | "failed";
+
+const eyebrowClass = "text-[0.65rem] font-geist-mono uppercase tracking-[0.12em] text-ui-text-muted";
+const fieldLabelClass = "flex items-center gap-[0.35rem] font-geist-mono text-[0.62rem] uppercase tracking-[0.1em] text-ui-text-muted";
 
 export function RenderDeskPanel(props: RenderDeskPanelProps) {
   const inProgress = props.renderJob?.state === "queued" || props.renderJob?.state === "running";
@@ -248,13 +252,13 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
   const showRenderControls = !isComplete || showSuccessSettings;
 
   return (
-    <section className="panel panel-render">
-      <div className="render-toolbar">
-        <div className="render-toolbar-left">
-          <p className="eyebrow">Stage 04 &mdash; Render Desk</p>
-          <h2>{isComplete ? "Render complete" : "Export your podcast"}</h2>
+    <section className="flex flex-col rounded-lg border border-ui-border bg-ui-bg-panel shadow-ui-sm animate-[panelReveal_240ms_ease]">
+      <div className="flex items-start justify-between gap-4 border-b border-ui-border px-5 py-4">
+        <div className="flex flex-col gap-1">
+          <p className={eyebrowClass}>Stage 04 - Render Desk</p>
+          <h2 className="m-0 text-[1.15rem]">{isComplete ? "Render complete" : "Export your podcast"}</h2>
         </div>
-        <div className="render-toolbar-right">
+        <div className="flex items-center gap-2">
           {inProgress ? (
             <HisuiButton variant="ghost" onClick={() => void props.onCancel()}>Cancel</HisuiButton>
           ) : null}
@@ -263,7 +267,7 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
             <HisuiButton
               variant="primary"
               size="lg"
-              className="render-btn-start"
+              className="inline-flex items-center gap-[0.45rem]"
               loading={inProgress}
               loadingText="Rendering..."
               icon={!inProgress ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="currentColor"/></svg> : undefined}
@@ -277,13 +281,13 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
       </div>
 
       {isComplete && props.renderJob ? (
-        <section className="render-success" aria-live="polite">
-          <div className="render-success-header">
-            <p className="render-success-kicker">Your episode is ready</p>
-            <span className="render-job-id">Job {props.renderJob.id.slice(0, 8)}</span>
+        <section className="mx-5 mt-[1.1rem] flex flex-col gap-3 rounded-lg border border-ui-success-soft-border bg-ui-success-card p-4" aria-live="polite">
+          <div className="flex items-center justify-between gap-3 max-[1024px]:items-start max-[1024px]:flex-col">
+            <p className="m-0 text-[0.92rem] font-semibold text-ui-success">Your episode is ready</p>
+            <span className="font-geist-mono text-[0.72rem] text-ui-text-muted">Job {props.renderJob.id.slice(0, 8)}</span>
           </div>
 
-          <div className="render-success-actions">
+          <div className="flex flex-wrap gap-2 max-[640px]:grid max-[640px]:w-full">
             <HisuiButton variant="primary" onClick={() => void handlePlayOutput()}>
               Play Output
             </HisuiButton>
@@ -299,13 +303,13 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
           </div>
 
           {confirmOverwrite ? (
-            <div className="render-overwrite-confirm" role="alert">
-              <p>
+            <div className="flex flex-col gap-[0.55rem] rounded-md border border-ui-warning-soft-border bg-ui-warning-soft px-[0.8rem] py-[0.7rem]" role="alert">
+              <p className="m-0 text-[0.78rem] text-ui-text-secondary">
                 This will overwrite the previous file at
                 {" "}
-                <code>{props.renderJob.outputMp3Path}</code>
+                <code className="font-geist-mono text-ui-warning">{props.renderJob.outputMp3Path}</code>
               </p>
-              <div className="render-overwrite-actions">
+              <div className="flex flex-wrap gap-2">
                 <HisuiButton variant="primary" onClick={() => void handleRenderAgain(true)}>
                   Overwrite &amp; Render
                 </HisuiButton>
@@ -317,28 +321,24 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
           ) : null}
 
           {props.renderJob.metrics ? (
-            <div className="render-metrics render-metrics--success">
-              <div className="render-metric">
-                <span className="render-metric-value">{props.renderJob.metrics.segmentCount}</span>
-                <span className="render-metric-label">Segments</span>
-              </div>
-              <div className="render-metric">
-                <span className="render-metric-value">{props.renderJob.metrics.renderSeconds}s</span>
-                <span className="render-metric-label">Render time</span>
-              </div>
-              <div className="render-metric">
-                <span className="render-metric-value">{props.renderJob.metrics.realtimeFactor}x</span>
-                <span className="render-metric-label">RTF</span>
-              </div>
+            <div className="flex flex-wrap items-start gap-6 pt-[0.15rem]">
+              <Metric value={String(props.renderJob.metrics.segmentCount)} label="Segments" />
+              <Metric value={`${props.renderJob.metrics.renderSeconds}s`} label="Render time" />
+              <Metric value={`${props.renderJob.metrics.realtimeFactor}x`} label="RTF" />
             </div>
           ) : null}
 
           {props.renderJob.outputMp3Path ? (
-            <div className="render-output render-output--success">
-              <span className="render-output-label">Output</span>
-              <code className="render-output-path">{props.renderJob.outputMp3Path}</code>
+            <div className="flex items-center gap-2 border-t border-ui-border pt-3">
+              <span className="font-geist-mono text-[0.65rem] uppercase tracking-[0.08em] text-ui-text-muted">Output</span>
+              <code className="rounded-[3px] bg-ui-bg-surface px-2 py-[0.2rem] font-geist-mono text-[0.78rem] text-ui-text-secondary">{props.renderJob.outputMp3Path}</code>
               {copyStatus !== "idle" ? (
-                <span className={`render-copy-status render-copy-status--${copyStatus}`}>
+                <span
+                  className={cn(
+                    "ml-auto font-geist-mono text-[0.65rem] uppercase tracking-[0.06em]",
+                    copyStatus === "copied" ? "text-ui-success" : "text-ui-error"
+                  )}
+                >
                   {copyStatus === "copied" ? "Copied" : "Copy failed"}
                 </span>
               ) : null}
@@ -346,7 +346,7 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
           ) : null}
 
           {showAudioPlayer && audioSource ? (
-            <div className="render-audio-wrap">
+            <div className="pt-2">
               <HisuiAudioPlayer
                 src={audioSource}
                 autoPlay
@@ -357,25 +357,26 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
           ) : null}
 
           {actionError ? (
-            <div className="alert alert-error">
-              <span className="alert-icon" aria-hidden="true">!</span>
-              <p>{actionError}</p>
+            <div className="mt-3 flex items-start gap-2 rounded border border-ui-error-soft-border bg-ui-error-soft px-[0.85rem] py-[0.65rem] text-[0.82rem] text-ui-error">
+              <span className="mt-px inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-ui-error text-[0.65rem] font-bold text-white" aria-hidden="true">!</span>
+              <p className="m-0">{actionError}</p>
             </div>
           ) : null}
         </section>
       ) : null}
 
       {showRenderControls ? (
-        <div className="render-config">
-          <div className="render-config-group">
-            <div className="render-config-row">
-              <div className="render-field render-field--wide">
-                <span className="render-field-label">
-                  <span className="render-field-label-icon" aria-hidden="true">{FolderIcon}</span>
+        <div className="flex flex-col gap-[0.6rem] p-5">
+          <div className="rounded-lg border border-ui-border bg-ui-bg-card px-4 py-[0.85rem] transition-[border-color] duration-200 hover:border-ui-border-strong">
+            <div className="flex items-start gap-4 max-[1024px]:flex-col">
+              <div className="flex min-w-0 flex-[2.2] flex-col gap-[0.35rem]">
+                <span className={fieldLabelClass}>
+                  <span className="inline-flex text-ui-accent opacity-60" aria-hidden="true">{FolderIcon}</span>
                   Output directory
                 </span>
-                <div className="render-path-picker">
+                <div className="flex items-center overflow-hidden rounded-[5px] border border-ui-border-strong bg-ui-bg-input transition-[border-color,box-shadow] duration-150 focus-within:border-ui-accent focus-within:ring-[3px] focus-within:ring-ui-accent-soft max-[640px]:flex-col max-[640px]:items-stretch">
                   <input
+                    className="min-w-0 flex-1 border-0 bg-transparent px-[0.7rem] py-[0.5rem] text-[0.82rem] text-ui-text-primary focus:outline-none"
                     value={props.outputDir}
                     onChange={(event) => props.setOutputDir(event.target.value)}
                     placeholder="/Users/you/Desktop/Hisui"
@@ -383,7 +384,7 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
                   />
                   <button
                     type="button"
-                    className="render-path-browse-icon"
+                    className="relative z-[1] flex h-auto w-10 shrink-0 items-center justify-center self-stretch border-0 border-l border-l-ui-border bg-transparent p-0 text-ui-text-muted transition-[background,color] duration-150 hover:bg-ui-accent-soft hover:text-ui-accent active:bg-ui-accent-soft-active max-[640px]:h-10 max-[640px]:w-full max-[640px]:border-l-0 max-[640px]:border-t max-[640px]:border-t-ui-border"
                     onClick={() => { void props.onBrowseOutputDir(); }}
                     aria-label="Browse for output folder"
                     title="Browse for folder"
@@ -396,34 +397,36 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
                   </button>
                 </div>
               </div>
-              <div className="render-field">
-                <span className="render-field-label">
-                  <span className="render-field-label-icon" aria-hidden="true">{FileIcon}</span>
+              <div className="flex min-w-0 flex-1 flex-col gap-[0.35rem]">
+                <span className={fieldLabelClass}>
+                  <span className="inline-flex text-ui-accent opacity-60" aria-hidden="true">{FileIcon}</span>
                   File name
                 </span>
-                <div className="render-filename-wrap">
+                <div className="flex items-center overflow-hidden rounded-[5px] border border-ui-border-strong bg-ui-bg-input transition-[border-color,box-shadow] duration-150 focus-within:border-ui-accent focus-within:ring-[3px] focus-within:ring-ui-accent-soft">
                   <input
+                    className="min-w-0 flex-1 border-0 bg-transparent px-[0.7rem] py-[0.5rem] text-[0.82rem] text-ui-text-primary focus:outline-none"
                     value={props.outputFileName}
                     onChange={(event) => props.setOutputFileName(event.target.value)}
                     placeholder="my-podcast"
                     aria-label="Output file name"
                   />
-                  <span className="render-filename-ext" aria-hidden="true">.mp3</span>
+                  <span className="whitespace-nowrap border-l border-l-ui-border px-[0.6rem] font-geist-mono text-[0.72rem] leading-[34px] text-ui-text-muted" aria-hidden="true">.mp3</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="render-config-group">
-            <div className="render-config-row render-config-row--options">
-              <div className="render-field render-field--speed">
-                <span className="render-field-label">
-                  <span className="render-field-label-icon" aria-hidden="true">{SpeedIcon}</span>
+          <div className="rounded-lg border border-ui-border bg-ui-bg-card px-4 py-[0.85rem] transition-[border-color] duration-200 hover:border-ui-border-strong">
+            <div className="flex items-stretch gap-4 max-[1024px]:flex-col">
+              <div className="flex min-w-0 flex-[2] flex-col gap-[0.35rem]">
+                <span className={fieldLabelClass}>
+                  <span className="inline-flex text-ui-accent opacity-60" aria-hidden="true">{SpeedIcon}</span>
                   Speed
-                  <span className="render-speed-value">{props.speed.toFixed(2)}x</span>
+                  <span className="ml-auto text-[0.7rem] font-bold text-ui-accent">{props.speed.toFixed(2)}x</span>
                 </span>
-                <div className="render-speed-track">
+                <div className="flex flex-col gap-1">
                   <input
+                    className="h-1 w-full appearance-none rounded border-0 bg-ui-speed-track p-0 [&::-webkit-slider-thumb]:h-[14px] [&::-webkit-slider-thumb]:w-[14px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-ui-bg-panel [&::-webkit-slider-thumb]:bg-ui-accent"
                     type="range"
                     min={0.7}
                     max={1.4}
@@ -432,46 +435,47 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
                     onChange={(event) => props.setSpeed(Number(event.target.value))}
                     style={{ "--speed-fill": `${speedPercent}%` } as CSSProperties}
                   />
-                  <div className="render-speed-labels" aria-hidden="true">
+                  <div className="flex select-none justify-between px-[2px] font-geist-mono text-[0.55rem] text-ui-text-muted opacity-60" aria-hidden="true">
                     <span>0.7x</span>
                     <span>1.0x</span>
                     <span>1.4x</span>
                   </div>
                 </div>
               </div>
-              <label className="render-field render-field--check">
-                <span className="render-check-toggle">
+              <label className="flex shrink-0 cursor-pointer items-center gap-[0.65rem] whitespace-nowrap border-l border-l-ui-border px-3 py-2 max-[1024px]:border-l-0 max-[1024px]:border-t max-[1024px]:border-t-ui-border">
+                <span className="relative inline-flex h-5 w-9 shrink-0">
                   <input
+                    className="peer absolute h-0 w-0 opacity-0"
                     type="checkbox"
                     checked={props.enableLlmPrep}
                     onChange={(event) => props.setEnableLlmPrep(event.target.checked)}
                   />
-                  <span className="render-check-slider" aria-hidden="true" />
+                  <span className="absolute inset-0 rounded-[10px] border border-ui-border-strong bg-ui-bg-surface transition-[background,border-color] duration-200 after:absolute after:left-[2px] after:top-[2px] after:h-[14px] after:w-[14px] after:rounded-full after:bg-ui-text-muted after:transition-[transform,background] after:duration-200 peer-checked:border-ui-accent-ghost-border peer-checked:bg-ui-accent-soft peer-checked:after:translate-x-4 peer-checked:after:bg-ui-accent" aria-hidden="true" />
                 </span>
-                <span className="render-check-text">
-                  <span className="render-check-label">LLM text prep</span>
-                  <span className="render-check-desc">Process text before TTS</span>
+                <span className="flex flex-col gap-[0.1rem]">
+                  <span className="font-geist-sans text-[0.78rem] font-medium text-ui-text-primary">LLM text prep</span>
+                  <span className="font-geist-mono text-[0.6rem] tracking-[0.02em] text-ui-text-muted">Process text before TTS</span>
                 </span>
               </label>
             </div>
           </div>
         </div>
       ) : (
-        <div className="render-config render-config--summary">
-          <div className="render-config-group render-settings-summary">
-            <div className="render-settings-summary-row">
-              <span className="render-output-label">Output directory</span>
-              <code className="render-output-path">{props.outputDir || "(not set)"}</code>
+        <div className="flex flex-col gap-[0.6rem] p-5 pt-[0.9rem]">
+          <div className="flex flex-col gap-[0.55rem] rounded-lg border border-ui-border bg-ui-bg-card px-4 py-[0.85rem]">
+            <div className="flex items-center justify-between gap-3 max-[1024px]:items-start max-[1024px]:flex-col">
+              <span className="font-geist-mono text-[0.65rem] uppercase tracking-[0.08em] text-ui-text-muted">Output directory</span>
+              <code className="rounded-[3px] bg-ui-bg-surface px-2 py-[0.2rem] font-geist-mono text-[0.78rem] text-ui-text-secondary">{props.outputDir || "(not set)"}</code>
             </div>
-            <div className="render-settings-summary-row">
-              <span className="render-output-label">File target</span>
-              <code className="render-output-path">{computedTargetPath ?? "(not set)"}</code>
+            <div className="flex items-center justify-between gap-3 max-[1024px]:items-start max-[1024px]:flex-col">
+              <span className="font-geist-mono text-[0.65rem] uppercase tracking-[0.08em] text-ui-text-muted">File target</span>
+              <code className="rounded-[3px] bg-ui-bg-surface px-2 py-[0.2rem] font-geist-mono text-[0.78rem] text-ui-text-secondary">{computedTargetPath ?? "(not set)"}</code>
             </div>
-            <div className="render-settings-summary-row render-settings-summary-row--meta">
+            <div className="flex items-center justify-between gap-3 font-geist-mono text-[0.72rem] text-ui-text-secondary">
               <span>Speed: {props.speed.toFixed(2)}x</span>
               <span>LLM prep: {props.enableLlmPrep ? "Enabled" : "Disabled"}</span>
             </div>
-            <div className="render-settings-summary-actions">
+            <div className="flex justify-end pt-[0.15rem] max-[1024px]:justify-start">
               <HisuiButton variant="ghost" onClick={() => setShowSuccessSettings(true)}>
                 Edit settings
               </HisuiButton>
@@ -481,26 +485,35 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
       )}
 
       {props.renderJob && !isComplete ? (
-        <article className={`render-status ${isErrorState ? "render-status--err" : ""} ${inProgress ? "render-status--active" : ""}`} role="status" aria-live="polite">
-          <div className="render-status-header">
-            <div className="render-status-left">
-              <span className={`render-state-badge render-state-badge--${props.renderJob.state}`}>
+        <article
+          className={cn(
+            "mx-5 mb-5 flex flex-col gap-3 rounded-md border bg-ui-bg-card p-4",
+            inProgress && "border-ui-accent-ghost-border animate-[statusPulse_2s_ease-in-out_infinite]",
+            !inProgress && isErrorState && "border-ui-error-border-strong",
+            !inProgress && !isErrorState && "border-ui-border"
+          )}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className={renderStateBadgeClass(props.renderJob.state)}>
                 {stateLabel(props.renderJob.state)}
               </span>
-              <span className="render-job-id">Job {props.renderJob.id.slice(0, 8)}</span>
+              <span className="font-geist-mono text-[0.72rem] text-ui-text-muted">Job {props.renderJob.id.slice(0, 8)}</span>
             </div>
           </div>
 
           {progress && inProgress ? (
-            <div className="render-progress">
-              <div className="render-progress-head">
-                <span className="render-progress-phase">{progress.message}</span>
-                <span className="render-progress-percent">{Math.round(progress.percent)}%</span>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[0.78rem] text-ui-text-secondary">{progress.message}</span>
+                <span className="font-geist-mono text-[0.78rem] font-bold tracking-[0.04em] text-ui-accent">{Math.round(progress.percent)}%</span>
               </div>
-              <div className="progress-track" role="progressbar" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100}>
-                <div className="progress-fill" style={{ width: `${Math.max(0, Math.min(100, progress.percent))}%` }} />
+              <div className="h-[6px] w-full overflow-hidden rounded-[3px] border border-ui-border bg-ui-bg-input" role="progressbar" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100}>
+                <div className="h-full rounded-[3px] bg-ui-progress transition-[width] duration-250" style={{ width: `${Math.max(0, Math.min(100, progress.percent))}%` }} />
               </div>
-              <div className="render-progress-meta">
+              <div className="flex items-center justify-between gap-4 font-geist-mono text-[0.62rem] uppercase tracking-[0.05em] text-ui-text-muted">
                 {progress.totalSegments ? (
                   <span>
                     Segments {Math.max(0, progress.completedSegments ?? 0)}/{progress.totalSegments}
@@ -518,45 +531,56 @@ export function RenderDeskPanel(props: RenderDeskPanelProps) {
           ) : null}
 
           {props.renderJob.metrics ? (
-            <div className="render-metrics">
-              <div className="render-metric">
-                <span className="render-metric-value">{props.renderJob.metrics.segmentCount}</span>
-                <span className="render-metric-label">Segments</span>
-              </div>
-              <div className="render-metric">
-                <span className="render-metric-value">{props.renderJob.metrics.renderSeconds}s</span>
-                <span className="render-metric-label">Render time</span>
-              </div>
-              <div className="render-metric">
-                <span className="render-metric-value">{props.renderJob.metrics.realtimeFactor}x</span>
-                <span className="render-metric-label">RTF</span>
-              </div>
+            <div className="flex flex-wrap items-start gap-6">
+              <Metric value={String(props.renderJob.metrics.segmentCount)} label="Segments" />
+              <Metric value={`${props.renderJob.metrics.renderSeconds}s`} label="Render time" />
+              <Metric value={`${props.renderJob.metrics.realtimeFactor}x`} label="RTF" />
             </div>
           ) : null}
 
           {props.renderJob.outputMp3Path ? (
-            <div className="render-output">
-              <span className="render-output-label">Output</span>
-              <code className="render-output-path">{props.renderJob.outputMp3Path}</code>
+            <div className="flex items-center gap-2 border-t border-ui-border pt-2">
+              <span className="font-geist-mono text-[0.65rem] uppercase tracking-[0.08em] text-ui-text-muted">Output</span>
+              <code className="rounded-[3px] bg-ui-bg-surface px-2 py-[0.2rem] font-geist-mono text-[0.78rem] text-ui-text-secondary">{props.renderJob.outputMp3Path}</code>
             </div>
           ) : null}
 
           {props.renderJob.errorText ? (
-            <div className="alert alert-error">
-              <span className="alert-icon" aria-hidden="true">!</span>
-              <p>{props.renderJob.errorText}</p>
+            <div className="mt-3 flex items-start gap-2 rounded border border-ui-error-soft-border bg-ui-error-soft px-[0.85rem] py-[0.65rem] text-[0.82rem] text-ui-error">
+              <span className="mt-px inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-ui-error text-[0.65rem] font-bold text-white" aria-hidden="true">!</span>
+              <p className="m-0">{props.renderJob.errorText}</p>
             </div>
           ) : null}
         </article>
       ) : null}
 
       {props.renderError ? (
-        <div className="alert alert-error">
-          <span className="alert-icon" aria-hidden="true">!</span>
-          <p>{props.renderError}</p>
+        <div className="mx-5 mb-5 mt-3 flex items-start gap-2 rounded border border-ui-error-soft-border bg-ui-error-soft px-[0.85rem] py-[0.65rem] text-[0.82rem] text-ui-error">
+          <span className="mt-px inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-ui-error text-[0.65rem] font-bold text-white" aria-hidden="true">!</span>
+          <p className="m-0">{props.renderError}</p>
         </div>
       ) : null}
     </section>
+  );
+}
+
+function renderStateBadgeClass(state: RenderJob["state"]) {
+  return cn(
+    "rounded-[3px] px-[0.5rem] py-[0.2rem] font-geist-mono text-[0.68rem] font-bold uppercase tracking-[0.06em]",
+    state === "queued" && "bg-ui-phase-awaiting text-ui-warning",
+    state === "running" && "bg-ui-phase-running text-ui-accent",
+    state === "completed" && "bg-ui-phase-ready text-ui-success",
+    state === "failed" && "bg-ui-phase-error text-ui-error",
+    state === "canceled" && "bg-ui-bg-surface text-ui-text-muted"
+  );
+}
+
+function Metric({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="font-geist-mono text-[1.1rem] font-bold text-ui-text-primary">{value}</span>
+      <span className="font-geist-mono text-[0.62rem] uppercase tracking-[0.08em] text-ui-text-muted">{label}</span>
+    </div>
   );
 }
 

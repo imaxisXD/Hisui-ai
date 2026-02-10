@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { cn } from "../lib/utils";
 
 interface HisuiAudioPlayerProps {
   src: string;
@@ -48,7 +49,6 @@ export function HisuiAudioPlayer({ src, autoPlay = true, onError, onPlayError }:
     }
   }, []);
 
-  // Initialize audio element
   useEffect(() => {
     const audio = new Audio();
     audio.preload = "metadata";
@@ -115,7 +115,6 @@ export function HisuiAudioPlayer({ src, autoPlay = true, onError, onPlayError }:
     };
   }, []);
 
-  // Update source when src prop changes
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !src) return;
@@ -127,7 +126,6 @@ export function HisuiAudioPlayer({ src, autoPlay = true, onError, onPlayError }:
     audio.load();
   }, [src]);
 
-  // Sync volume
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -224,11 +222,11 @@ export function HisuiAudioPlayer({ src, autoPlay = true, onError, onPlayError }:
   }, []);
 
   return (
-    <div className="hisui-player">
-      <div className="hisui-player-controls">
+    <div className="flex items-center gap-[0.65rem] rounded-[10px] border border-ui-border bg-ui-player-surface px-3 py-[0.6rem] shadow-ui-player-base transition-[border-color,box-shadow] duration-200 hover:border-ui-accent-ghost-border hover:shadow-ui-player-hover">
+      <div className="flex shrink-0 items-center gap-[0.15rem]">
         <button
           type="button"
-          className="hisui-player-btn hisui-player-skip"
+          className="grid h-7 w-7 place-items-center rounded-full border-0 bg-transparent p-0 text-ui-text-muted transition-[color,background,transform] duration-150 hover:bg-ui-frost-hover hover:text-ui-text-primary active:scale-[0.92]"
           onClick={skipBack}
           aria-label="Skip back 10 seconds"
           title="-10s"
@@ -243,12 +241,17 @@ export function HisuiAudioPlayer({ src, autoPlay = true, onError, onPlayError }:
 
         <button
           type="button"
-          className={`hisui-player-btn hisui-player-play ${playState === "loading" ? "hisui-player-play--loading" : ""}`}
+          className={cn(
+            "grid h-9 w-9 place-items-center rounded-full border-0 p-0 text-white transition-[background,box-shadow,transform] duration-150 active:scale-[0.92]",
+            "bg-ui-accent shadow-ui-player-primary",
+            "hover:bg-ui-accent-hover hover:shadow-ui-player-primary-hover",
+            playState === "loading" && "opacity-80"
+          )}
           onClick={togglePlayPause}
           aria-label={playState === "playing" ? "Pause" : "Play"}
         >
           {playState === "loading" ? (
-            <svg className="hisui-player-spinner" width="20" height="20" viewBox="0 0 20 20">
+            <svg className="animate-[spin_800ms_linear_infinite]" width="20" height="20" viewBox="0 0 20 20">
               <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.25"/>
               <path d="M10 2a8 8 0 0 1 8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
@@ -266,7 +269,7 @@ export function HisuiAudioPlayer({ src, autoPlay = true, onError, onPlayError }:
 
         <button
           type="button"
-          className="hisui-player-btn hisui-player-skip"
+          className="grid h-7 w-7 place-items-center rounded-full border-0 bg-transparent p-0 text-ui-text-muted transition-[color,background,transform] duration-150 hover:bg-ui-frost-hover hover:text-ui-text-primary active:scale-[0.92]"
           onClick={skipForward}
           aria-label="Skip forward 30 seconds"
           title="+30s"
@@ -280,11 +283,11 @@ export function HisuiAudioPlayer({ src, autoPlay = true, onError, onPlayError }:
         </button>
       </div>
 
-      <div className="hisui-player-timeline">
-        <span className="hisui-player-time">{formatTime(currentTime)}</span>
+      <div className="flex min-w-0 flex-1 items-center gap-[0.45rem]">
+        <span className="min-w-[3.2em] shrink-0 select-none text-center font-geist-mono text-[0.68rem] tracking-[0.02em] text-ui-text-secondary">{formatTime(currentTime)}</span>
         <div
           ref={progressTrackRef}
-          className="hisui-player-progress"
+          className="group/progress relative h-[6px] flex-1 cursor-pointer rounded-full bg-ui-frost-track"
           role="slider"
           aria-label="Seek"
           aria-valuenow={Math.round(currentTime)}
@@ -292,20 +295,20 @@ export function HisuiAudioPlayer({ src, autoPlay = true, onError, onPlayError }:
           aria-valuemax={Math.round(duration)}
           onMouseDown={handleProgressMouseDown}
         >
-          <div className="hisui-player-progress-buffered" style={{ width: `${bufferedPercent}%` }}/>
-          <div className="hisui-player-progress-filled" style={{ width: `${progressPercent}%` }}/>
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-[1] rounded-[inherit] bg-ui-accent-buffered" style={{ width: `${bufferedPercent}%` }}/>
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-[2] rounded-[inherit] bg-ui-player-fill" style={{ width: `${progressPercent}%` }}/>
           <div
-            className="hisui-player-progress-thumb"
+            className="pointer-events-none absolute top-1/2 z-[3] h-[14px] w-[14px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ui-accent-hover shadow-ui-player-progress-thumb transition-transform duration-150 group-active/progress:scale-120"
             style={{ left: `${progressPercent}%` }}
           />
         </div>
-        <span className="hisui-player-time">{formatTime(duration)}</span>
+        <span className="min-w-[3.2em] shrink-0 select-none text-center font-geist-mono text-[0.68rem] tracking-[0.02em] text-ui-text-secondary">{formatTime(duration)}</span>
       </div>
 
-      <div className="hisui-player-volume">
+      <div className="flex shrink-0 items-center gap-[0.3rem]">
         <button
           type="button"
-          className="hisui-player-btn hisui-player-mute"
+          className="grid h-[26px] w-[26px] place-items-center rounded-full border-0 bg-transparent p-0 text-ui-text-muted transition-[color,background,transform] duration-150 hover:text-ui-text-primary active:scale-[0.92]"
           onClick={() => setIsMuted(!isMuted)}
           aria-label={isMuted ? "Unmute" : "Mute"}
         >
@@ -330,7 +333,7 @@ export function HisuiAudioPlayer({ src, autoPlay = true, onError, onPlayError }:
         </button>
         <div
           ref={volumeTrackRef}
-          className="hisui-player-volume-track"
+          className="relative h-1 w-16 cursor-pointer rounded-full bg-ui-frost-track-strong"
           role="slider"
           aria-label="Volume"
           aria-valuenow={Math.round(effectiveVolume * 100)}
@@ -338,8 +341,8 @@ export function HisuiAudioPlayer({ src, autoPlay = true, onError, onPlayError }:
           aria-valuemax={100}
           onMouseDown={handleVolumeMouseDown}
         >
-          <div className="hisui-player-volume-fill" style={{ width: `${effectiveVolume * 100}%` }}/>
-          <div className="hisui-player-volume-thumb" style={{ left: `${effectiveVolume * 100}%` }}/>
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-[1] rounded-[inherit] bg-ui-accent" style={{ width: `${effectiveVolume * 100}%` }}/>
+          <div className="pointer-events-none absolute top-1/2 z-[2] h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ui-accent-hover shadow-ui-player-volume-thumb" style={{ left: `${effectiveVolume * 100}%` }}/>
         </div>
       </div>
     </div>
